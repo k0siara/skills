@@ -22,4 +22,6 @@ npx skills add k0siara/skills --list
 
 ## Reference
 
-- **[restate-problem](./skills/restate-problem/SKILL.md)**: Restates your goals and the problem you're solving in the agent's own words, so you can catch misunderstandings before any work starts.
+| Skill | What it does | When to use |
+|---|---|---|
+| [restate-problem](./skills/restate-problem/SKILL.md) | Restates your goals and the problem you're solving in the agent's own words. | Before starting non-trivial work, to catch misunderstandings early. Trigger: "restate the problem", `/restate-problem`. |
