@@ -1,0 +1,3 @@
+interface:
+  display_name: "Restate problem"
+  short_description: "Restate the user’s goals and underlying problem"

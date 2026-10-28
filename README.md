@@ -22,4 +22,4 @@ npx skills add k0siara/skills --list
 
 ## Reference
 
-_No skills yet._
+- **[restate-problem](./skills/restate-problem/SKILL.md)**: Restates your goals and the problem you're solving in the agent's own words, so you can catch misunderstandings before any work starts.
