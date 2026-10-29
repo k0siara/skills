@@ -1,0 +1,3 @@
+interface:
+  display_name: "Babysit PR"
+  short_description: "Watch a GitHub PR, propose fixes for review comments, rebase on conflict"
