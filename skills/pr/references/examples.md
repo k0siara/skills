@@ -57,6 +57,34 @@ This gives the reviewer a failure mode and observed coverage without turning one
 
 A code revert is not a data rollback. State the actual deployment boundary instead of giving a reassuring label.
 
+## Fix with a deliberate gap and a rejected alternative
+
+### Avoid
+
+> Fixed duplicate reminders. Considered several approaches and picked the best one. Some edge cases remain and will be handled later.
+
+### Prefer
+
+> A retried delivery job sent the same reminder twice when the first attempt timed out after the provider had accepted it. Send each reminder with an idempotency key derived from the reminder ID, so the provider drops the retry.
+>
+> ## Change
+> - `ReminderSender` passes the same key on every attempt, including retries.
+> - Rename the setting `retry.maxAttempts` to `reminders.retry.maxAttempts`. The old key is no longer read.
+> - A per-reminder database lock was rejected: it would be held for the whole provider call and still would not cover a timeout after acceptance.
+>
+> ## Scope
+> - Reminders that were already duplicated are not corrected.
+> - Other notification types keep the current retry behavior; tracked in `<issue link>`.
+>
+> ## Verification
+> - Integration test against the provider sandbox: a forced timeout after acceptance resulted in one delivered reminder.
+> - Staging load test: p95 send latency 180 ms → 185 ms.
+>
+> ## Risks and rollout
+> Environments that set `retry.maxAttempts` must rename it before deployment; otherwise they fall back to the default of three attempts.
+
+The rejected alternative answers the obvious review question, the scope names what a reviewer might assume is fixed, and the rename names both keys.
+
 ## Updating an existing description
 
 Replace stale claims rather than appending another dated update. If a final relevant edit followed the last test run, say that the current version has not been rechecked. Retain human-written requirements and approval references; do not silently replace a conflicting statement with an agent's assumption.
