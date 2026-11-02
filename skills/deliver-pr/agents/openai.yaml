@@ -1,0 +1,3 @@
+interface:
+  display_name: "Deliver PR"
+  short_description: "Deliver one task end to end, from worktree to a verified PR"
