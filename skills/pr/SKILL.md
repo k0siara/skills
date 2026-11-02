@@ -24,7 +24,11 @@ Start the body with one or two sentences explaining the problem and the resultin
 
 ### Change
 
-Use a few bullets for behavior, significant design decisions and boundaries that are not obvious from the diff. Mention a file or symbol only when it helps the reviewer locate an important decision. Highlight a consequential exclusion, especially when the PR fixes future behavior but leaves existing data unchanged.
+Use a few bullets for behavior, significant design decisions and boundaries that are not obvious from the diff. Mention a file or symbol only when it helps the reviewer locate an important decision. For a rename or retarget, name both the old and the new target. Mention a rejected alternative only when a reviewer would otherwise ask why it was not used.
+
+### Scope
+
+State what the PR deliberately leaves out when a reviewer could reasonably expect it: a known gap, a follow-up or existing data that a fix for future behavior leaves unchanged. Use a few short items, not a file list.
 
 ### Verification
 
@@ -32,6 +36,7 @@ Report what was actually established:
 
 - Check or command → observed result and the behavior it covers.
 - Runtime scenario → relevant environment → observed outcome.
+- Performance change → one primary metric with its unit as `before → after` in the stated environment; link the full measurements.
 - Important failure, skipped check or remaining uncertainty.
 
 Build success is not proof of runtime behavior. A mock is not a real integration. Do not infer a pass from the presence of tests or a checked box in a plan. Call a failure pre-existing only with supporting evidence; otherwise describe it as unresolved.
@@ -51,7 +56,7 @@ Put a merge blocker or unusual target branch near the top. Keep deployment prere
 
 ## Keep only review value
 
-- A trivial change may need only a paragraph and a verification line. Aim for roughly 100–250 words for an ordinary PR, not a hard limit. Security, data integrity and rollout constraints take precedence over brevity.
+- A trivial change may need only a paragraph and a verification line. Aim for roughly 100–250 words for an ordinary PR, not a hard limit. Security, data integrity and rollout constraints take precedence over brevity. When the repository squash-merges with the PR body as the commit message, keep the body readable as that commit message, roughly 40 lines at most.
 - Use a table, diagram or before/after comparison only if it explains the change better than prose. Do not repeat the same information in several formats. Screenshots are optional unless required by the project.
 - Keep UI/platform, service/API, data migration and infrastructure details only when the diff makes them relevant. Do not impose one stack's checklist on every PR.
 - Remove exhaustive file lists, chronological updates, superseded results, unrelated future work, agent signatures and session links. Use artifacts accessible to the intended reviewers, not local filesystem paths.
@@ -64,4 +69,4 @@ Before publishing, check every claim against its source and remove sentences tha
 
 If asked only for wording, return the draft without changing git or the hosting service. If asked to open or update a PR, use the repository's workflow and available tools, check for an existing PR for the source/target pair, and publish the description for the intended branch. Preserve human-written context and required references when updating; remove superseded agent-written material rather than appending a work log. Do not silently overwrite conflicting human statements.
 
-Opening or editing a PR does not authorize merging it, bypassing checks, force-pushing or changing visibility. Report the PR link and any remaining verification or rollout limitation.
+Opening or editing a PR does not authorize merging it, bypassing checks, force-pushing or changing visibility. After publishing, view the PR and confirm its title, body and target branch before reporting it. Report the PR link and any remaining verification or rollout limitation.
