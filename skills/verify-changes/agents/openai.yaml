@@ -1,0 +1,3 @@
+interface:
+  display_name: "Verify changes"
+  short_description: "Prove changes with the repo's checks and return PASS, FAIL or INCONCLUSIVE"
