@@ -1,6 +1,6 @@
 ---
 name: babysit-pr
-description: Watches a GitHub PR in the background and notifies the user about new human review comments, approval, CI failure and merge; analyses comments and proposes minimal fixes and replies for the user's approval; rebases on conflict; after the merge removes the agent's PR worktree and closes its own Herdr workspace. Use when the user asks to babysit, watch or monitor a PR, or wants to be notified about PR comments, approval or merge.
+description: Watches a GitHub PR in the background until it is approved and notifies the user about new human review comments, CI failure, approval and merge; analyses comments and proposes minimal fixes and replies for the user's approval; rebases on conflict; stops watching once the PR is approved; if the PR merges while watched, removes the agent's PR worktree and closes its own Herdr workspace. Use when the user asks to babysit, watch or monitor a PR, or wants to be notified about PR comments, approval or merge.
 ---
 
 # Babysit PR
@@ -28,7 +28,7 @@ Free-text input ("Other", custom input, note) always means "change this draft": 
 
 ## Start
 
-1. `gh pr view <pr> --json number,url,title,state,headRefName,baseRefName,reviewDecision,mergeStateStatus`. Merged → notify `info`, then **Merged**. Closed → notify `warning` and stop.
+1. `gh pr view <pr> --json number,url,title,state,headRefName,baseRefName,reviewDecision,mergeStateStatus`. Merged → notify `info`, then **Merged**. Closed → notify `warning` and stop. `reviewDecision` `APPROVED` → notify `info` `PR #<n>: already approved, not watching`, then **Approved**.
 2. Find the local checkout of `headRefName` (`git worktree list`); if there is none, create one (**Worktree**). It must be on the PR head with a clean tree. Otherwise stop and report.
 3. If `test "${HERDR_ENV:-}" = 1` passes, rename your own workspace to the PR's ticket key: `herdr workspace rename "$HERDR_WORKSPACE_ID" <KEY>`. The key is a `[A-Z][A-Z0-9]+-[0-9]+` match at the start of the title (`[ABC-123] ...` or `ABC-123: ...`), else a case-insensitive one at the start of `headRefName` or right after a `/`, followed by `-`, `_` or the end (`abc-123-fix`, `feature/ABC-123`), uppercased. Without one, use `PR #<n>`. On error, report it and continue.
 4. Handle the current state once, because the watcher's first run records existing activity without reporting it: unanswered human comments and unresolved threads → **Comments**; `DIRTY` → **Conflict**; failed checks (`gh pr checks`) → CI notification.
@@ -58,13 +58,13 @@ It exits on the first batch of events; OMP delivers the output to you as a follo
 
 ## On wake
 
-Handle every line, at most one notification per category, then restart the watcher unless told to stop:
+Handle every line, at most one notification per category, then restart the watcher unless told to stop or the PR is approved:
 
 | Line | Action |
 |---|---|
 | `merged:` | notify `info`, stop watching, then **Merged** |
 | `closed without merging` | notify `warning`, stop watching |
-| `review from X (approved)` | notify `info`; a non-empty body also goes to **Comments** |
+| `review from X (approved)` | notify `info`; a non-empty body goes to **Comments** first. Then `gh pr view <pr> --json reviewDecision`: `APPROVED`, or empty (the repo requires no review), → **Approved**; anything else (more approvals required) → restart |
 | `comment from`, `new thread from`, `thread reply from`, `review from X (changes requested\|commented)` | notify `info` `PR #n: <k> new comments, analysing`, then **Comments** |
 | `check failed` / `required check failed` | notify `error` with check name and link; no fix |
 | `merge state is DIRTY` | notify `warning`, then **Conflict** |
@@ -89,7 +89,7 @@ Nothing is edited, committed, pushed or posted before the user approves.
 5. Present one block per comment: link, author, one-line quote; verdict (agree / partly / disagree, why); proposed code change as a concrete diff, or none; proposed reply text in the format the project rules require for PR comments.
 6. Ask for approval (**Notify and ask**): question `PR #<n> · <k> new comments`, one item per comment, `label` = one-line summary, block = that comment's step 5 block as markdown, diff in a ```diff fence. Approved items are the selected ones (or `Approve`). Changed drafts need new approval.
 7. Apply exactly the approved fixes. If the real change departs from the approved diff, stop and ask again. Run the pre-commit/pre-push steps the project rules require, commit, `git push` (never force), then post exactly the approved replies: thread replies via the `addPullRequestReviewThreadReply` mutation, top-level ones via `gh pr comment`. Do not resolve threads unless the user approved it.
-8. Report what was pushed and posted, then restart the watcher.
+8. Report what was pushed and posted, then restart the watcher, or go to **Approved** when **On wake** says so.
 
 ## Conflict
 
@@ -102,6 +102,10 @@ Rebase the PR branch onto its base in the PR's worktree. Do not message reviewer
 5. Run the verification and pre-push steps the project rules require. Do not push past a failure.
 6. `git push --force-with-lease`, never plain `--force`. Then check that `git rev-parse HEAD` equals `git rev-parse @{u}`.
 7. Report the new head commit, the number of commits rebased, the files with resolved conflicts and the verification that ran. If a step failed, report the blocker and any partial side effects instead. Then restart the watcher.
+
+## Approved
+
+Stop watching this PR: do not restart the watcher (it has already exited) and kill any other watcher of this PR you started (`proc://<job-id>/kill`). Keep the worktree and the Herdr workspace: only **Merged** removes them, and after approval it no longer runs, so the user cleans up. Final reply: who approved, what was pushed or posted in this round, watching stopped, worktree path kept. Do not merge.
 
 ## Merged
 
