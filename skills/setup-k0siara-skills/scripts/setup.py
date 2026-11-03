@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-"""setup.py: write the k0siara-reviewer and k0siara-verifier agents for every harness found.
+"""setup.py: write the k0siara role agents for every harness found.
 
-  setup.py [--role reviewer=MODEL[:EFFORT]] [--role verifier=MODEL[:EFFORT]] [--write] [--backup-dir DIR]
+  setup.py [--role ROLE=MODEL[:EFFORT]]... [--write] [--backup-dir DIR]
+
+ROLE is reviewer, verifier, technical or architecture. technical and architecture are the
+structured PR reviewers code-review-technical-agent and code-review-architecture-agent; they exist
+only in OMP, so they need a model only when OMP is installed.
 
 MODEL is an OMP model selector (`provider/id`, e.g. `openai-codex/gpt-6.1-sol`, or a bare id OMP
 resolves to one provider); EFFORT is its thinking level (default high). Roles not given on the
@@ -11,9 +15,9 @@ Without --write nothing changes: it prints the diff of everything it would write
 copies each file it changes to the backup directory, then writes:
 
   ~/.config/k0siara-skills/config.yml     role -> model + effort (the source of truth)
-  ~/.omp/agent/agents/k0siara-<role>.md   + task.agentModelOverrides in ~/.omp/agent/config.yml
-  ~/.codex/agents/k0siara-<role>.toml     no model: the subagent uses the session's model
-  ~/.claude/agents/k0siara-<role>.md      no model: the subagent uses the session's model
+  ~/.omp/agent/agents/<agent>.md          + task.agentModelOverrides in ~/.omp/agent/config.yml
+  ~/.codex/agents/k0siara-<role>.toml     reviewer and verifier; no model: the session's model
+  ~/.claude/agents/k0siara-<role>.md      reviewer and verifier; no model: the session's model
 
 Only OMP gets a model: its `task` tool has no model field, so the override is the only way to pin one.
 Files for a harness are written only when its CLI (omp, codex, claude) is on PATH.
@@ -35,7 +39,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn
 
-ROLES = ("reviewer", "verifier")
+ROLES = ("reviewer", "verifier", "technical", "architecture")
+# Structured PR reviewers: roles/<role>.md is their complete OMP agent file, output schema included.
+# Codex and Claude Code have no structured subagent output, so only OMP gets them.
+OMP_ONLY = {"technical": "code-review-technical-agent", "architecture": "code-review-architecture-agent"}
 HOME = Path.home()
 CONFIG_DIR = HOME / ".config" / "k0siara-skills"
 CONFIG = CONFIG_DIR / "config.yml"
@@ -71,7 +78,7 @@ class Role:
 
     @property
     def agent(self) -> str:
-        return f"k0siara-{self.name}"
+        return OMP_ONLY.get(self.name, f"k0siara-{self.name}")
 
     @property
     def prompt(self) -> str:
@@ -130,6 +137,8 @@ def frontmatter(fields: list[tuple[str, str | list[str]]]) -> str:
 
 
 def omp_agent(role: Role) -> str:
+    if role.name in OMP_ONLY:
+        return role.prompt
     fields: list[tuple[str, str | list[str]]] = [("name", role.agent), ("description", DESCRIPTIONS[role.name])]
     if role.name == "reviewer":
         fields += [("tools", OMP_REVIEWER_TOOLS), ("spawns", [role.agent])]
@@ -164,14 +173,15 @@ def main() -> None:
     for item in args.role:
         m = re.fullmatch(r"([a-z]+)=([^\s:]+)(?::([a-z]+))?", item)
         if not m or m.group(1) not in ROLES:
-            fail(f"--role {item!r}: expected reviewer|verifier=MODEL[:EFFORT]", 2)
+            fail(f"--role {item!r}: expected {'|'.join(ROLES)}=MODEL[:EFFORT]", 2)
         wanted[m.group(1)] = (m.group(2), m.group(3) or "high")
-    missing = [name for name in ROLES if name not in wanted]
-    if missing:
-        fail(f"no model for {', '.join(missing)}: pass --role {missing[0]}=MODEL[:EFFORT]", 2)
-    roles = [Role(name, *wanted[name]) for name in ROLES]
     found = [name for name in ("omp", "codex", "claude") if shutil.which(name)]
     print(f"harnesses found: {', '.join(found) or 'none'}")
+    needed = [name for name in ROLES if name not in OMP_ONLY or "omp" in found]
+    missing = [name for name in needed if name not in wanted]
+    if missing:
+        fail(f"no model for {', '.join(missing)}: pass --role {missing[0]}=MODEL[:EFFORT]", 2)
+    roles = [Role(name, *wanted[name]) for name in ROLES if name in wanted]
 
     files: dict[Path, str] = {CONFIG: render_config(roles)}
     overrides = new_overrides = {}
@@ -182,9 +192,9 @@ def main() -> None:
         if "omp" in found:
             new_overrides[role.agent] = f"{omp_resolve(role)}:{role.effort}"
             files[HOME / ".omp" / "agent" / "agents" / f"{role.agent}.md"] = omp_agent(role)
-        if "codex" in found:
+        if "codex" in found and role.name not in OMP_ONLY:
             files[HOME / ".codex" / "agents" / f"{role.agent}.toml"] = codex_agent(role)
-        if "claude" in found:
+        if "claude" in found and role.name not in OMP_ONLY:
             files[HOME / ".claude" / "agents" / f"{role.agent}.md"] = claude_agent(role)
 
     old = {path: path.read_text() if path.exists() else None for path in files}
