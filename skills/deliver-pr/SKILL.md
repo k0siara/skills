@@ -23,32 +23,21 @@ Defaults when nothing says otherwise:
 
 ## Stage agents
 
-`verify-changes` and `pre-pr-review` never run in your own context. Each runs in a separate agent, so build logs stay out of your context and the review comes from a different model. One check decides where that agent runs.
+`verify-changes` and `pre-pr-review` never run in your own context. Each runs in a subagent of your harness, so build logs stay out of your context and the review comes from an agent that did not write the code.
 
-1. **Check for hc.** `HC_TERMINAL_ID` is set and `command -v hc herdr-app jq` finds all three.
-   - Yes: run each stage in a new Herdr tab through hc (steps 2-9).
-   - No: run each stage as a subagent of your harness (step 10).
-2. **Read the manuals once:** `hc --skill` and `herdr-app --skill`.
-3. **Agents are always `omp`.** Never start codex, claude or another harness for these stages. Models, unless the workspace instructions or the caller name others:
+1. **Agent by role.** Start each stage with your harness's subagent tool (in OMP `task` with `agent`, in Claude Code the Agent tool with `subagent_type`), one subagent per run of a stage:
 
-   | stage | model |
+   | stage | agent |
    |---|---|
-   | `verify-changes` | `anthropic/claude-sonnet-5-5:high` |
-   | `pre-pr-review` | `gpt-6.1-sol` |
+   | `verify-changes` | `k0siara-verifier` |
+   | `pre-pr-review` | `k0siara-reviewer` |
 
-4. **Start** each stage with the bundled script, from the workspace directory, one agent per run of a stage:
-
-   ```bash
-   <this skill>/scripts/open-agent-tab.sh --model <model> <task-id>-<stage>-<n> "<task-id> <stage>" <worktree> "<prompt>"
-   ```
-
-   The script starts `omp` through a login shell with `hc run --bg`, labels it into your space and names the tab. It prints `{agent, address, tab}`. Without `--outlive-parent` the stage agent ends with you. Read its screen once (`hc read --lines 30 <agent>`) to confirm the prompt arrived.
-5. **Prompt.** Each stage prompt contains: run skill `<stage>`; the worktree path, the base ref and the `task.md` path; the report file (`verify.md` or `pre-pr-review.md` in the artifacts directory); no push, no PR, no comments, no tracker writes. For `verify-changes`, add that it may fix code inside the task's scope and must commit nothing. In an hc tab, also: read `hc --skill` first, and report with `hc send <your HC_TERMINAL_ID>` when done or stuck.
-6. **Wait** with `hc wait <agent>`. `reason: timeout` is a check-in: wait again. `reason: message` brings the agent's report as your next input. On `blocked` or `error`, read its screen and act; a permission question goes to the user. Never sleep or poll.
-7. **Do not touch the worktree while a stage agent runs.** `verify-changes` edits the same files.
-8. **Collect** from the report file, not from the screen or the agent's summary. Check that it was written after the agent started and names the current `HEAD` SHA (and, for `verify-changes`, the uncommitted files you expect). A missing or stale report counts as `INCONCLUSIVE`.
-9. **Close** an hc stage agent you started once its report is read: `hc kill <agent>; hc rm <agent>`. Keep it open when the stage failed or got stuck, and name it in your report so the user can inspect it.
-10. **Without hc,** start one subagent per stage run with your harness's subagent tool (in omp, `task`), with the step 5 prompt and the step 3 model when the tool lets you choose one. Run it in the background when the tool allows, wait for it, then apply steps 7 and 8. If a `pre-pr-review` subagent cannot start its own reviewers, run `pre-pr-review` yourself under its Independence rules: you only gather inputs and verify findings, and the reviewers run as subagents.
+   `setup-k0siara-skills` creates these agents and decides their models. Never pass a model yourself. If the agent does not exist or the tool cannot select it by name, start a plain subagent with the same prompt; for `pre-pr-review`, choose a model other than yours when the tool lets you.
+2. **Prompt.** Each stage prompt contains: run skill `<stage>`; the worktree path, the base ref and the `task.md` path; the report file (`verify.md` or `pre-pr-review.md` in the artifacts directory); no push, no PR, no comments, no tracker writes. For `verify-changes`, add that it may fix code inside the task's scope and must commit nothing.
+3. **Wait.** Run the subagent in the background when the tool allows, and wait for its result instead of polling.
+4. **Do not touch the worktree while a stage agent runs.** `verify-changes` edits the same files.
+5. **Collect** from the report file, not from the agent's summary. Check that it was written after the agent started and names the current `HEAD` SHA (and, for `verify-changes`, the uncommitted files you expect). A missing or stale report counts as `INCONCLUSIVE`.
+6. If a `pre-pr-review` subagent cannot start its own reviewers, run `pre-pr-review` yourself under its Independence rules: you only gather inputs and verify findings, and the reviewers run as subagents.
 
 ## Invariants
 
@@ -129,26 +118,25 @@ Run the `verify-changes` skill on the worktree with the `task.md` path: in a sta
 ## 6. Pre-PR review
 
 1. Commit the changes locally following the repository's commit rules. Do not push.
-2. Write the draft PR title and description to `pr-body.md` in the artifacts directory. Use the `pr` skill when available.
+2. Run the `pr` skill to write the draft PR title and description to `pr-body.md` in the artifacts directory. The `pr` skill decides the format, language, repository template and content; never write the description in your own format. If the `pr` skill is not installed, stop and tell the user to install it with `npx skills@latest add k0siara/skills -g`.
 3. Run the `pre-pr-review` skill with the worktree, the base, `task.md`, `pr-body.md` and the `verify-changes` result: in a stage agent (see "Stage agents"). It reviews and does not edit.
 4. Fix every confirmed finding and every gap in its rules table, regardless of priority, with these exceptions:
    - outside the task's scope: do not fix; list it in the final report;
    - `missing_justification`: add the justification to `pr-body.md`; without one, simplify the code to the existing pattern;
    - mismatch between the draft PR and the task: fix `pr-body.md`; an error on the task's side becomes a tracker proposal in step 7;
    - a fix that needs a breaking public-API change or contradicts the task or a recorded decision: stop and ask.
-5. Run step 5 again, in a fresh stage agent. Commit the fixes locally. Before the first push you may fold them into existing commits; after it, add new commits. Review the diff of the fixes yourself. Do not rerun the reviewers.
+5. Run step 5 again, in a fresh stage agent. Commit the fixes locally. Before the first push you may fold them into existing commits; after it, add new commits. Review the diff of the fixes yourself. Do not rerun the reviewers. Then run the `pr` skill again to refresh `pr-body.md` from the final diff and the latest verification and review results.
 
 ## 7. Finish
 
 1. Check the publication prerequisites the instructions define, such as a required tracker description. Anything that needs approval gets a proposal first.
-2. Push and create the PR as the instructions require (base, reviewers, labels, formatting before push), with the title and body from `pr-body.md`. The PR links the task and states the verification results, including one line on the pre-PR review: findings fixed and findings rejected.
+2. Push and create or update the PR as the instructions require (base, reviewers, labels, formatting before push) by running the `pr` skill with the final `pr-body.md` as its draft. It publishes the title and body; they link the task and state the verification results, including one line on the pre-PR review: findings fixed and findings rejected.
 3. Read the PR back and verify its URL, head commit, base, branch, requested reviewers and the CI state available right now.
 4. Delete the artifacts the instructions mark as temporary. Keep the worktree.
 5. Report to the user:
    - the PR URL;
    - verification: each check and its observed result, plus any `INCONCLUSIVE` gap;
    - pre-PR review: findings fixed, findings rejected with the reason, issues outside the scope;
-   - hc stage agents left open, with their addresses;
    - for approval: the proposed tracker status change and any proposed tracker corrections.
 6. Apply tracker changes only after explicit approval, without repeating the commit, push or PR.
 

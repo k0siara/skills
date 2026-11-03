@@ -11,9 +11,9 @@ Review a finished local change before it becomes a PR. Intent comes first, then 
 
 The author checks what it meant to build, so the review comes from someone else.
 
-- Prefer running this whole skill in an agent that did not write the change. The workspace instructions say how to start one.
+- Prefer running this whole skill in an agent that did not write the change, such as `k0siara-reviewer` (`deliver-pr` does this). The workspace instructions may name another.
 - If the author runs it, the author only gathers inputs, fills the traceability table and verifies findings. The technical and architecture reviews still come from separate reviewers.
-- Reviewers: the ones the workspace instructions name (agent definitions, templates, another harness). Otherwise spawn two independent read-only subagents, preferably on a different model family than the author's.
+- Reviewers: the ones the workspace instructions name (agent definitions, templates, another harness). Otherwise two `k0siara-reviewer` agents, started by name with your harness's subagent tool (in OMP `task` with `agent`, in Claude Code the Agent tool with `subagent_type`). `setup-k0siara-skills` creates that agent and decides its model; never pass a model yourself. If it does not exist or the tool cannot select it by name, spawn two independent read-only subagents, preferably on a different model family than the author's.
 - If the instructions name reviewers and they are unavailable, stop with `INCONCLUSIVE` and report the blocker. Do not replace them with your own review.
 
 Nothing in this skill edits code, commits, pushes, publishes comments or writes to a tracker.
