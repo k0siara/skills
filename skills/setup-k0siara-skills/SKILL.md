@@ -1,42 +1,41 @@
 ---
 name: setup-k0siara-skills
-description: "Use once after installing k0siara/skills, and whenever the user wants to change which model reviews or verifies: asks for the model and effort of the `reviewer`, `verifier`, `technical` and `architecture` roles, writes ~/.config/k0siara-skills/config.yml and creates the k0siara-reviewer and k0siara-verifier agents for OMP, Codex and Claude Code plus the structured code-review-technical-agent and code-review-architecture-agent for OMP. Shows every change before writing and is safe to rerun. Triggers: setup-k0siara-skills, /setup-k0siara-skills, set up k0siara skills, change the reviewer model, configure review agents."
+description: "Use once after installing k0siara/skills, and whenever the user wants to change which model reviews and verifies: asks for the model and effort of the `review` agent, writes ~/.config/k0siara-skills/config.yml and creates the `review` agent for OMP, Codex and Claude Code. Shows every change before writing and is safe to rerun. Triggers: setup-k0siara-skills, /setup-k0siara-skills, set up k0siara skills, change the review model, configure the review agent."
 ---
 
 # Set up k0siara skills
 
 `<skill-dir>` is the directory that contains this file.
 
-Skills and review workflows never name a model. They start agents by role:
+Skills never name a model. Verification and review run in one agent, `review`, which has no instructions of its own: the delegating prompt says what to do. It exists so these subagents run on a model other than the session's.
 
-| agent | role | used by |
-|---|---|---|
-| `k0siara-reviewer` | `reviewer`: independent read-only review | `pre-pr-review` reviewers, the `deliver-pr` review stage |
-| `k0siara-verifier` | `verifier`: runs checks, may fix in scope, never commits | the `deliver-pr` verification stage |
-| `code-review-technical-agent` | `technical`: structured technical PR review (correctness, edge cases, error paths, tests, reliability, security, performance, logging and monitoring) | your own PR review workflows that need findings, coverage and a verdict as typed fields |
-| `code-review-architecture-agent` | `architecture`: structured architecture PR review (project rules, boundaries, patterns, design principles, error architecture, contracts) | as above |
+| used by | for |
+|---|---|
+| `deliver-pr` | the `verify-changes` and `pre-pr-review` stages |
+| `pre-pr-review` | the technical and architecture reviewers |
+| `review-pr` | the technical and architecture reviewers, each prompted with its checklist |
 
-This skill creates the agents in every harness it finds and records the models in one place, `~/.config/k0siara-skills/config.yml`:
+This skill creates the agent in every harness it finds and records the model in one place, `~/.config/k0siara-skills/config.yml`:
 
-- **OMP:** `~/.omp/agent/agents/<agent>.md`, and the role's model in `task.agentModelOverrides` of `~/.omp/agent/config.yml`. OMP's `task` tool takes no model, so this override is what pins it. `omp config set` merges the key and keeps every other setting.
-- **Codex:** `~/.codex/agents/k0siara-<role>.toml` for `reviewer` and `verifier`, with no model: the subagent uses the session's model.
-- **Claude Code:** `~/.claude/agents/k0siara-<role>.md` for `reviewer` and `verifier`, with no model: the subagent uses the session's model.
+- **OMP:** `~/.omp/agent/agents/review.md`, and the model in `task.agentModelOverrides` of `~/.omp/agent/config.yml`. OMP's `task` tool takes no model, so this override is what pins it.
+- **Codex:** `~/.codex/agents/review.toml`, with no model: the subagent uses the session's model.
+- **Claude Code:** `~/.claude/agents/review.md`, with no model: the subagent uses the session's model.
 
-The reviewers have no edit tools in OMP and Claude Code. Codex agent files cannot restrict tools, so there the read-only rule lives in its instructions. `technical` and `architecture` exist only in OMP: they return structured output (a typed schema filled with incremental `yield`), which Codex and Claude Code subagents do not support. Their files in `roles/` are complete OMP agent definitions; they get read-only tools without a shell and may spawn `scout`.
+It also removes the agents earlier versions created (`k0siara-reviewer`, `k0siara-verifier`, `code-review-technical-agent`, `code-review-architecture-agent`) and their OMP overrides.
 
 ## Steps
 
-1. Read `~/.config/k0siara-skills/config.yml` if it exists and show the current models.
-2. Ask the user for the model and effort of each role, offering the current values as defaults. A model is an OMP selector such as `openai-codex/gpt-6.1-sol`, and the effort one of the levels OMP lists for it (`omp models find <id>`). Without OMP the model is only recorded; Codex and Claude Code use their session model either way, and `technical` and `architecture` need no model.
+1. Read `~/.config/k0siara-skills/config.yml` if it exists and show the current model.
+2. Ask the user for the model and effort, offering the current values as defaults. A model is an OMP selector such as `openai-codex/gpt-6.1-sol`, and the effort one of the levels OMP lists for it (`omp models find <id>`). Without OMP the model is only recorded; Codex and Claude Code use their session model either way.
 3. Show the plan without writing anything:
 
    ```bash
-   python3 <skill-dir>/scripts/setup.py --role reviewer=<model>:<effort> --role verifier=<model>:<effort> --role technical=<model>:<effort> --role architecture=<model>:<effort>
+   python3 <skill-dir>/scripts/setup.py --model <model>:<effort>
    ```
 
-   It names the harnesses it found, validates each model in OMP (exit 1 or 2 with the reason when OMP does not offer the model or the effort) and prints every file it would create or update as a diff, plus the OMP override changes. `no changes` means everything is already in place.
+   It names the harnesses it found, validates the model in OMP (exit 1 or 2 with the reason when OMP does not offer the model or the effort) and prints every file it would create, update or remove, plus the OMP override changes. `no changes` means everything is already in place.
 4. Show the plan to the user and ask for approval. Do not write before they approve.
-5. Apply it with the same command plus `--write`. It copies each file it changes, including `~/.omp/agent/config.yml`, to `~/.config/k0siara-skills/backups/<timestamp>/` (or `--backup-dir <dir>`) before writing, and prints that path.
-6. Run the step 3 command again. It must print `no changes`. Report the agents created, the backup path and, for OMP, that new sessions and subagent launches pick the agents up without a restart.
+5. Apply it with the same command plus `--write`. It copies each file it changes or removes, including `~/.omp/agent/config.yml`, to `~/.config/k0siara-skills/backups/<timestamp>/` (or `--backup-dir <dir>`) before writing, and prints that path.
+6. Run the step 3 command again. It must print `no changes`. Report the agent files written and removed, the backup path and, for OMP, that new sessions and subagent launches pick the agent up without a restart.
 
-Rerun the skill after installing another harness, to give it the agents too.
+Rerun the skill after installing another harness, to give it the agent too.

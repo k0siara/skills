@@ -25,14 +25,7 @@ Defaults when nothing says otherwise:
 
 `verify-changes` and `pre-pr-review` never run in your own context. Each runs in a subagent of your harness, so build logs stay out of your context and the review comes from an agent that did not write the code.
 
-1. **Agent by role.** Start each stage with your harness's subagent tool (in OMP `task` with `agent`, in Claude Code the Agent tool with `subagent_type`), one subagent per run of a stage:
-
-   | stage | agent |
-   |---|---|
-   | `verify-changes` | `k0siara-verifier` |
-   | `pre-pr-review` | `k0siara-reviewer` |
-
-   `setup-k0siara-skills` creates these agents and decides their models. Never pass a model yourself. If the agent does not exist or the tool cannot select it by name, start a plain subagent with the same prompt; for `pre-pr-review`, choose a model other than yours when the tool lets you.
+1. **The `review` agent.** Start each stage in a `review` subagent with your harness's subagent tool (in OMP `task` with `agent: "review"`, in Claude Code the Agent tool with `subagent_type: "review"`), one subagent per run of a stage. `review` has no instructions of its own; the stage prompt (item 2) says what to do. `setup-k0siara-skills` creates it and decides its model. Never pass a model yourself. If it does not exist or the tool cannot select it by name, start a plain subagent with the same prompt; for `pre-pr-review`, choose a model other than yours when the tool lets you.
 2. **Prompt.** Each stage prompt contains: run skill `<stage>`; the worktree path, the base ref and the `task.md` path; the report file (`verify.md` or `pre-pr-review.md` in the artifacts directory); no push, no PR, no comments, no tracker writes. For `verify-changes`, add that it may fix code inside the task's scope and must commit nothing.
 3. **Wait.** Run the subagent in the background when the tool allows, and wait for its result instead of polling.
 4. **Do not touch the worktree while a stage agent runs.** `verify-changes` edits the same files.

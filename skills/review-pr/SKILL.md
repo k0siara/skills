@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: "Code review of someone else's GitHub PR: detached review worktree, source-backed business context from the task and PR discussion, rule-to-implementation-and-test traceability, structured `code-review-technical-agent` and `code-review-architecture-agent` reviewers (OMP, created by setup-k0siara-skills), verified findings, a review coverage report and GitHub comments published only after the user approves them. Triggers: review-pr <PR>, /review-pr <PR-link>, review PR, review this PR, zrób review, sprawdź PR."
+description: "Code review of someone else's GitHub PR: detached review worktree, source-backed business context from the task and PR discussion, rule-to-implementation-and-test traceability, technical and architecture reviewers (two `review` subagents from setup-k0siara-skills, each prompted with its checklist), verified findings, a review coverage report and GitHub comments published only after the user approves them. Triggers: review-pr <PR>, /review-pr <PR-link>, review PR, review this PR, zrób review, sprawdź PR."
 ---
 
 # Review PR
@@ -9,13 +9,13 @@ description: "Code review of someone else's GitHub PR: detached review worktree,
 
 Three agents run the review:
 
-| Agent | Definition | Responsibility |
+| Agent | Instructions | Responsibility |
 |---|---|---|
 | Lead (you) | this skill | sources and business context, rule implementation and test coverage, scope, test and CI results, verifying and merging findings, every Git/GitHub operation and every user approval |
-| Technical | `code-review-technical-agent` | correctness, edge cases, error paths, test quality, reliability, security, performance, logging and monitoring |
-| Architecture | `code-review-architecture-agent` | project instructions and docs, responsibility boundaries, patterns, design principles including KISS, error architecture, contracts, justification of new or changed patterns |
+| Technical | `references/technical.md` | correctness, edge cases, error paths, test quality, reliability, security, performance, logging and monitoring |
+| Architecture | `references/architecture.md` | project instructions and docs, responsibility boundaries, patterns, design principles including KISS, error architecture, contracts, justification of new or changed patterns |
 
-The reviewer checklists live only in their definitions; this skill describes the process, inputs, outputs and the lead's duties. Do not use a harness's bundled generic reviewer instead.
+The reviewer checklists and report formats live only in `references/`; this skill describes the process, inputs, outputs and the lead's duties. Do not use a harness's bundled generic reviewer instead.
 
 Order: shared business context first (step 2), then both reviewers in parallel and independently of each other, while the lead checks business fit and tests (step 3).
 
@@ -37,7 +37,7 @@ Keep a todo list with steps 1-5.
 
 ## Reviewers
 
-The reviewers are OMP custom agents created by `setup-k0siara-skills` in `~/.omp/agent/agents/`, started with one `task` call with `agent: "code-review-technical-agent"` and `agent: "code-review-architecture-agent"` (step 3). The same skill pins their models in `task.agentModelOverrides`; never pass a model in the call. They return structured output, so this skill needs OMP. When `task` does not know either agent, stop before step 3 and report the blocker to the user (`setup-k0siara-skills` creates them); do not replace it with another agent or your own review.
+Both reviewers run in the `review` agent, which `setup-k0siara-skills` creates and whose model it pins; never pass a model in the call. `review` has no instructions of its own: each reviewer's prompt is the full text of its file in `references/` (relative to this skill's directory), read by you and passed verbatim, plus the common input (step 3). When the subagent tool does not know `review`, stop before step 3 and report the blocker to the user (`setup-k0siara-skills` creates it); do not replace it with another agent or your own review.
 
 ## 1. Check out the PR
 
@@ -97,22 +97,24 @@ The reviewers read this file, check the quotes and may dispute your interpretati
 
 **Project knowledge** (the lead and both reviewers): in the worktree, `CLAUDE.md` and `AGENTS.md` at the repository root and in each directory on the path of a changed file (each only if it exists), plus the documents, checklists and architecture decisions they point to for the changed file types. Conditional sections about any stage of a change (planning, implementation, completion, hand-off to review, review) apply to the review too, with the checklists they point to. Do not look for documents beyond these references. The lead reads this knowledge before starting the reviewers, because step 4 needs it.
 
-**Common input** for each reviewer (`context`): the project-knowledge rule (verbatim, the paragraph above), the worktree path, the `pr.diff` path, the `business-context.md` path, the changed files with a short description of each change, and the areas needing attention from the business context and the file list. Do not pass the earlier PR remarks or the other reviewer's results. Output: the schema the agent declares (`findings` with `kind`, `coverage`, `context_challenges`, verdict); do not impose another format. Reviewers only read and never touch Git/GitHub; they return missing Git/GitHub data to the lead.
+**Common input** for each reviewer (`context`): the project-knowledge rule (verbatim, the paragraph above), the worktree path, the `pr.diff` path, the `business-context.md` path, the changed files with a short description of each change, and the areas needing attention from the business context and the file list. Do not pass the earlier PR remarks or the other reviewer's results. Reviewers only read and never touch Git/GitHub; they return missing Git/GitHub data to the lead.
 
-1. Start both reviewers in parallel with one `task` call:
+1. Read `references/technical.md` and `references/architecture.md`, then start both reviewers in parallel in one subagent call, each with its file's full text as the task. In OMP:
 
 ```javascript
 task({
   i: "Running PR review",
   context: "<COMMON INPUT>",
   tasks: [
-    { name: "ReviewArchitecture", agent: "code-review-architecture-agent", solutionSpace: "Architecture, project rules, boundaries, patterns, design principles incl. KISS, error architecture, contracts, pattern-change justification; findings open",
-      task: "Review the PR's changes for architecture per your definition: project instructions and docs, responsibility boundaries, consistency with at least two files of the same role and with single precedents of the same mechanism, design principles including KISS, error architecture, contracts, and justification of new or changed patterns. Report coverage of every area." },
-    { name: "ReviewTechnical", agent: "code-review-technical-agent", solutionSpace: "Technical correctness, edge cases, error paths, test quality, reliability, security, performance, logging and monitoring; findings open",
-      task: "Review the PR's changes technically per your definition: correctness, edge cases, complete error paths, test quality, reliability, security, performance, logging and monitoring in the tools the project uses. Report coverage of every area." }
+    { name: "ReviewArchitecture", agent: "review", solutionSpace: "Architecture, project rules, boundaries, patterns, design principles incl. KISS, error architecture, contracts, pattern-change justification; findings open",
+      task: "<full text of references/architecture.md>" },
+    { name: "ReviewTechnical", agent: "review", solutionSpace: "Technical correctness, edge cases, error paths, test quality, reliability, security, performance, logging and monitoring; findings open",
+      task: "<full text of references/technical.md>" }
   ]
 })
 ```
+
+   When a report lacks a section, a field the format requires or a coverage row, ask that reviewer for it (`write agent://<name>`) before step 4.
 
 2. **Business fit and tests (lead).** Without waiting for the reviewers, read `pr.diff` and the code in the worktree and, for every rule and scenario in `business-context.md` (those outside the acceptance criteria too), fill the table:
 
@@ -134,7 +136,7 @@ task({
 ## 4. Verify and present the results
 
 1. **Verify the reviewers' findings** in the code and sources: reject false alarms and behavior the business context or the docs explicitly allow; correct a wrong priority or line. For architecture findings check `reference`: for `documented` and `convention`, open the document or the reference files and confirm the rule or pattern exists; for `principle`, confirm the stated effect in the code; for `missing_justification`, confirm in `business-context.md` and the docs that the justification is absent. For `test_gap`, confirm the missing test or weak assertion; for `observability_gap`, confirm the project uses the named tool. Reject what you cannot confirm.
-   **Lead observations:** compare each with the reviewers' findings. Merge a covered one into its finding. Send an uncovered one to the right reviewer (`write agent://ReviewArchitecture` or `agent://ReviewTechnical`) asking for a judgment per its definition, and wait for the answer; when the reviewer is gone, judge it yourself with the same criteria (`reference`, confirmation in the code). Every observation ends as a finding or under "Rejected findings" with the reason.
+   **Lead observations:** compare each with the reviewers' findings. Merge a covered one into its finding. Send an uncovered one to the right reviewer (`write agent://ReviewArchitecture` or `agent://ReviewTechnical`) asking for a judgment per its checklist, and wait for the answer; when the reviewer is gone, judge it yourself with the same criteria (`reference`, confirmation in the code). Every observation ends as a finding or under "Rejected findings" with the reason.
 2. **`context_challenges`:** check each in the sources. Fix accepted ones in `business-context.md`, recompute the affected rows of the step 3 table and list the change in the summary; list rejected ones with the reason.
 3. **Merge:** findings with the same root cause are one finding, whatever the line and whichever agent reported them; different problems on the same line stay separate. A merged finding takes the higher priority (lower number) and all sources.
 4. **Earlier remarks:** compare the findings with the "earlier remarks" list from step 2. An issue already raised on the PR, in any thread state (resolved or outdated included), gets no new comment; if the problem is still in the code, it stays on the findings list with a link to the existing thread and its state.
