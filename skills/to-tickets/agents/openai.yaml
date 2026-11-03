@@ -1,0 +1,3 @@
+interface:
+  display_name: "To tickets"
+  short_description: "Break a spec into vertical-slice tickets with blocking edges"
