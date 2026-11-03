@@ -31,7 +31,7 @@ If the project has a glossary or decision records (`GLOSSARY.md`, `docs/adr/`), 
 6. **Ask one round.** Collect every decision that is still open and that only the user can make: product choices, trade-offs, scope cuts, your seams. Ask them in one numbered message. Give your recommended answer for each, worded so that "yes" accepts it. Never ask what the code, the docs or a quick experiment can answer. When an answer would only change a detail, decide it yourself, mark it as an assumption and move on. Whatever stays open goes to *Open questions*.
 7. **Write the spec** with [`references/template.md`](references/template.md). Keep every required section.
 8. **Check it** against the list below and fix what fails.
-9. **Hand it over.** Show the spec or its path, then list its assumptions and blocking open questions. It stays `Draft` until the user approves; then set `Approved` and save or publish it as the instructions say. Do not create tickets or start implementation. Suggest the next step: planning the work into tasks.
+9. **Hand it over.** Show the spec or its path, then list its assumptions and blocking open questions. It stays `Draft` until the user approves; then set `Approved` and save or publish it as the instructions say. Do not create tickets or start implementation. Suggest the next step: breaking it into tickets (`to-tickets`).
 
 ## Rules for the content
 
