@@ -14,7 +14,7 @@ Required sections are marked *(required)*. Keep them even when short. The others
 Who has the problem, what goes wrong for them today, and how we know (data, feedback, support tickets).
 
 ## Goal and success measure (required)
-What changes for the user or the business, and the signal that shows it worked: a metric, an event or an observable behaviour.
+What changes for the user or the business, and the signal that shows it worked: a metric, an event or an observable behaviour. No threshold yet: say when it is set.
 
 ## Solution (required)
 The solution from the user's point of view, in a few sentences. No implementation.
@@ -25,10 +25,10 @@ The solution from the user's point of view, in a few sentences. No implementatio
 - S3. Failure: <what goes wrong> → <what the user sees, what the system does>
 
 ## Current state
-How the system behaves today in the parts this change touches, by module and contract name. The prior art this design follows.
+How the system behaves today in the parts this change touches, by module and contract name. What already exists of this goal, and earlier decisions this spec replaces. The prior art this design follows.
 
 ## Design decisions (required)
-- <decision>: <why>
+- <decision>: <why> (<YYYY-MM-DD>, <who>)
 - Contracts: API, schema, events, stored data that change, with their shape.
 - State: which module owns each new or changed piece of state.
 - Alternatives considered: <shape> — rejected because <reason>.
@@ -54,7 +54,4 @@ How the system behaves today in the parts this change touches, by module and con
 
 ## Open questions (required, `None` when empty)
 - [blocking | non-blocking] <question> — answers: <who>
-
-## Decision log
-- <YYYY-MM-DD> <decision> — <who>
 ```
