@@ -1,28 +1,29 @@
 #!/usr/bin/env python3
-"""setup.py: write the k0siara role agents for every harness found.
+"""setup.py: write the `review` agent for every harness found.
 
-  setup.py [--role ROLE=MODEL[:EFFORT]]... [--write] [--backup-dir DIR]
+  setup.py [--model MODEL[:EFFORT]] [--write] [--backup-dir DIR]
 
-ROLE is reviewer, verifier, technical or architecture. technical and architecture are the
-structured PR reviewers code-review-technical-agent and code-review-architecture-agent; they exist
-only in OMP, so they need a model only when OMP is installed.
+`review` is a plain agent with no instructions of its own: the delegating prompt says what to do
+(run `verify-changes`, run `pre-pr-review`, review against a checklist). It exists so these
+subagents run on a chosen model.
 
 MODEL is an OMP model selector (`provider/id`, e.g. `openai-codex/gpt-6.1-sol`, or a bare id OMP
-resolves to one provider); EFFORT is its thinking level (default high). Roles not given on the
-command line come from ~/.config/k0siara-skills/config.yml.
+resolves to one provider); EFFORT is its thinking level (default high). Without --model the model
+comes from ~/.config/k0siara-skills/config.yml.
 
-Without --write nothing changes: it prints the diff of everything it would write. With --write it
-copies each file it changes to the backup directory, then writes:
+Without --write nothing changes: it prints the diff of everything it would write or remove. With
+--write it copies each file it changes or removes to the backup directory, then writes:
 
-  ~/.config/k0siara-skills/config.yml     role -> model + effort (the source of truth)
-  ~/.omp/agent/agents/<agent>.md          + task.agentModelOverrides in ~/.omp/agent/config.yml
-  ~/.codex/agents/k0siara-<role>.toml     reviewer and verifier; no model: the session's model
-  ~/.claude/agents/k0siara-<role>.md      reviewer and verifier; no model: the session's model
+  ~/.config/k0siara-skills/config.yml   model + effort (the source of truth)
+  ~/.omp/agent/agents/review.md         + task.agentModelOverrides in ~/.omp/agent/config.yml
+  ~/.codex/agents/review.toml           no model: the subagent uses the session's model
+  ~/.claude/agents/review.md            no model: the subagent uses the session's model
 
+It also removes the agents earlier versions created (OBSOLETE_AGENTS) and their OMP overrides.
 Only OMP gets a model: its `task` tool has no model field, so the override is the only way to pin one.
 Files for a harness are written only when its CLI (omp, codex, claude) is on PATH.
 
-Exit codes: 0 done, 1 OMP cannot run a configured model or a command failed, 2 bad arguments.
+Exit codes: 0 done, 1 OMP cannot run the model or a command failed, 2 bad arguments.
 """
 
 from __future__ import annotations
@@ -35,27 +36,23 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn
 
-ROLES = ("reviewer", "verifier", "technical", "architecture")
-# Structured PR reviewers: roles/<role>.md is their complete OMP agent file, output schema included.
-# Codex and Claude Code have no structured subagent output, so only OMP gets them.
-OMP_ONLY = {"technical": "code-review-technical-agent", "architecture": "code-review-architecture-agent"}
+AGENT = "review"
+DESCRIPTION = "Plain subagent on a dedicated model: does exactly what the delegating prompt asks (verification, pre-PR review, PR review)."
+OBSOLETE_AGENTS = ("k0siara-reviewer", "k0siara-verifier", "code-review-technical-agent", "code-review-architecture-agent")
 HOME = Path.home()
 CONFIG_DIR = HOME / ".config" / "k0siara-skills"
 CONFIG = CONFIG_DIR / "config.yml"
 OMP_CONFIG = HOME / ".omp" / "agent" / "config.yml"
-ROLE_DIR = Path(__file__).resolve().parent.parent / "roles"
+PROMPT = (Path(__file__).resolve().parent.parent / "roles" / "review.md").read_text()
 OVERRIDES = "task.agentModelOverrides"
-DESCRIPTIONS = {
-    "reviewer": "Independent read-only code reviewer (pre-pr-review). Never edits, commits or publishes.",
-    "verifier": "Runs a change's checks and verification (verify-changes); may fix failures in scope, never commits.",
+HARNESS_AGENT_FILES = {
+    "omp": lambda name: HOME / ".omp" / "agent" / "agents" / f"{name}.md",
+    "codex": lambda name: HOME / ".codex" / "agents" / f"{name}.toml",
+    "claude": lambda name: HOME / ".claude" / "agents" / f"{name}.md",
 }
-# OMP's bundled reviewer tools; `spawns` lets a reviewer that runs pre-pr-review start its own reviewers.
-OMP_REVIEWER_TOOLS = ["read", "find", "grep", "glob", "bash", "lsp", "web_search", "ast_grep"]
-CLAUDE_EDIT_TOOLS = "Edit, Write, NotebookEdit"
 
 
 def fail(message: str, code: int = 1) -> NoReturn:
@@ -70,132 +67,84 @@ def run(cmd: list[str]) -> str:
     return proc.stdout
 
 
-@dataclass
-class Role:
-    name: str
-    model: str
-    effort: str
-
-    @property
-    def agent(self) -> str:
-        return OMP_ONLY.get(self.name, f"k0siara-{self.name}")
-
-    @property
-    def prompt(self) -> str:
-        return (ROLE_DIR / f"{self.name}.md").read_text()
-
-
 # ---------- config.yml: only this script writes it, so it reads only this format ----------
 
-def read_config() -> dict[str, tuple[str, str]]:
+def read_config() -> tuple[str, str] | None:
     if not CONFIG.exists():
-        return {}
-    roles: dict[str, dict[str, str]] = {}
-    current = None
-    for line in CONFIG.read_text().splitlines():
-        if m := re.fullmatch(r"  ([a-z]+):", line):
-            current = roles.setdefault(m.group(1), {})
-        elif current is not None and (m := re.fullmatch(r"    (model|effort): (\S+)", line)):
-            current[m.group(1)] = m.group(2)
-    return {n: (r["model"], r["effort"]) for n, r in roles.items() if n in ROLES and {"model", "effort"} <= r.keys()}
+        return None
+    values = dict(re.findall(r"^(model|effort): (\S+)$", CONFIG.read_text(), re.M))
+    return (values["model"], values["effort"]) if {"model", "effort"} <= values.keys() else None
 
 
-def render_config(roles: list[Role]) -> str:
-    lines = ["# Written by setup-k0siara-skills. Change it by running the skill again.", "roles:"]
-    for role in roles:
-        lines += [f"  {role.name}:", f"    model: {role.model}", f"    effort: {role.effort}"]
-    return "\n".join(lines) + "\n"
+def render_config(model: str, effort: str) -> str:
+    return f"# Written by setup-k0siara-skills. Change it by running the skill again.\nmodel: {model}\neffort: {effort}\n"
 
 
-def omp_resolve(role: Role) -> str:
-    """The OMP selector for role.model; fails unless OMP lists it with role.effort."""
-    model_id = role.model.split("/", 1)[-1]
-    provider = role.model.split("/", 1)[0] if "/" in role.model else None
+def omp_resolve(model: str, effort: str) -> str:
+    """The OMP selector for model; fails unless OMP lists it with effort."""
+    model_id = model.split("/", 1)[-1]
+    provider = model.split("/", 1)[0] if "/" in model else None
     found = json.loads(run(["omp", "models", "find", model_id, "--json"]))["models"]
     hits = [m for m in found if m["id"] == model_id and provider in (None, m["provider"])]
     if not hits:
-        fail(f"{role.name}: OMP has no model {role.model} (see `omp models find {model_id}`)")
+        fail(f"OMP has no model {model} (see `omp models find {model_id}`)")
     if len(hits) > 1:
-        fail(f"{role.name}: {model_id} comes from several providers; pass one of "
-             + ", ".join(m["selector"] for m in hits), 2)
+        fail(f"{model_id} comes from several providers; pass one of " + ", ".join(m["selector"] for m in hits), 2)
     efforts = hits[0].get("thinking") or []
-    if efforts and role.effort not in efforts:
-        fail(f"{role.name}: {hits[0]['selector']} supports effort {', '.join(efforts)}, not {role.effort}", 2)
+    if efforts and effort not in efforts:
+        fail(f"{hits[0]['selector']} supports effort {', '.join(efforts)}, not {effort}", 2)
     return hits[0]["selector"]
 
 
 # ---------- agent files ----------
 
-def frontmatter(fields: list[tuple[str, str | list[str]]]) -> str:
-    lines = ["---"]
-    for key, value in fields:
-        if isinstance(value, list):
-            lines += [f"{key}:"] + [f"  - {item}" for item in value]
-        else:
-            lines.append(f"{key}: {json.dumps(value)}")
-    return "\n".join(lines + ["---", ""])
+def markdown_agent(harness: str) -> str:
+    lines = ["---", f"name: {json.dumps(AGENT)}", f"description: {json.dumps(DESCRIPTION)}"]
+    if harness == "omp":
+        lines.append('spawns: "*"')  # pre-pr-review run in this agent starts its own reviewers
+    return "\n".join(lines + ["---", ""]) + PROMPT
 
 
-def omp_agent(role: Role) -> str:
-    if role.name in OMP_ONLY:
-        return role.prompt
-    fields: list[tuple[str, str | list[str]]] = [("name", role.agent), ("description", DESCRIPTIONS[role.name])]
-    if role.name == "reviewer":
-        fields += [("tools", OMP_REVIEWER_TOOLS), ("spawns", [role.agent])]
-    return frontmatter(fields) + role.prompt
-
-
-def codex_agent(role: Role) -> str:
+def codex_agent() -> str:
     return "\n".join([
-        f"name = {json.dumps(role.agent)}",
-        f"description = {json.dumps(DESCRIPTIONS[role.name])}",
-        f"developer_instructions = {json.dumps(role.prompt)}",  # a JSON string is a valid TOML basic string
+        f"name = {json.dumps(AGENT)}",
+        f"description = {json.dumps(DESCRIPTION)}",
+        f"developer_instructions = {json.dumps(PROMPT)}",  # a JSON string is a valid TOML basic string
     ]) + "\n"
-
-
-def claude_agent(role: Role) -> str:
-    fields: list[tuple[str, str | list[str]]] = [("name", role.agent), ("description", DESCRIPTIONS[role.name])]
-    if role.name == "reviewer":
-        fields.append(("disallowedTools", CLAUDE_EDIT_TOOLS))
-    return frontmatter(fields) + role.prompt
 
 
 # ---------- plan and apply ----------
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="setup.py", description="Write the k0siara role agents.")
-    parser.add_argument("--role", action="append", default=[], metavar="ROLE=MODEL[:EFFORT]")
+    parser = argparse.ArgumentParser(prog="setup.py", description="Write the review agent.")
+    parser.add_argument("--model", metavar="MODEL[:EFFORT]")
     parser.add_argument("--write", action="store_true", help="apply the plan (default: show it only)")
     parser.add_argument("--backup-dir", type=Path, help="where to copy files before changing them")
     args = parser.parse_args()
 
-    wanted = read_config()
-    for item in args.role:
-        m = re.fullmatch(r"([a-z]+)=([^\s:]+)(?::([a-z]+))?", item)
-        if not m or m.group(1) not in ROLES:
-            fail(f"--role {item!r}: expected {'|'.join(ROLES)}=MODEL[:EFFORT]", 2)
-        wanted[m.group(1)] = (m.group(2), m.group(3) or "high")
-    found = [name for name in ("omp", "codex", "claude") if shutil.which(name)]
+    if args.model:
+        m = re.fullmatch(r"([^\s:]+)(?::([a-z]+))?", args.model)
+        if not m:
+            fail(f"--model {args.model!r}: expected MODEL[:EFFORT]", 2)
+        model, effort = m.group(1), m.group(2) or "high"
+    elif current := read_config():
+        model, effort = current
+    else:
+        fail("no model configured: pass --model MODEL[:EFFORT]", 2)
+    found = [name for name in HARNESS_AGENT_FILES if shutil.which(name)]
     print(f"harnesses found: {', '.join(found) or 'none'}")
-    needed = [name for name in ROLES if name not in OMP_ONLY or "omp" in found]
-    missing = [name for name in needed if name not in wanted]
-    if missing:
-        fail(f"no model for {', '.join(missing)}: pass --role {missing[0]}=MODEL[:EFFORT]", 2)
-    roles = [Role(name, *wanted[name]) for name in ROLES if name in wanted]
 
-    files: dict[Path, str] = {CONFIG: render_config(roles)}
+    files: dict[Path, str] = {CONFIG: render_config(model, effort)}
+    for harness in found:
+        files[HARNESS_AGENT_FILES[harness](AGENT)] = codex_agent() if harness == "codex" else markdown_agent(harness)
+    removed = [path for harness in found for name in OBSOLETE_AGENTS
+               if (path := HARNESS_AGENT_FILES[harness](name)).exists()]
+
     overrides = new_overrides = {}
     if "omp" in found:
         overrides = json.loads(run(["omp", "config", "get", OVERRIDES, "--json"]))["value"] or {}
-        new_overrides = dict(overrides)
-    for role in roles:
-        if "omp" in found:
-            new_overrides[role.agent] = f"{omp_resolve(role)}:{role.effort}"
-            files[HOME / ".omp" / "agent" / "agents" / f"{role.agent}.md"] = omp_agent(role)
-        if "codex" in found and role.name not in OMP_ONLY:
-            files[HOME / ".codex" / "agents" / f"{role.agent}.toml"] = codex_agent(role)
-        if "claude" in found and role.name not in OMP_ONLY:
-            files[HOME / ".claude" / "agents" / f"{role.agent}.md"] = claude_agent(role)
+        new_overrides = {k: v for k, v in overrides.items() if k not in OBSOLETE_AGENTS}
+        new_overrides[AGENT] = f"{omp_resolve(model, effort)}:{effort}"
 
     old = {path: path.read_text() if path.exists() else None for path in files}
     changed = [path for path in files if old[path] != files[path]]
@@ -204,10 +153,12 @@ def main() -> None:
         if old[path] is not None:
             sys.stdout.writelines(difflib.unified_diff(
                 old[path].splitlines(True), files[path].splitlines(True), "current", "new"))
-    for agent in sorted(new_overrides):
-        if overrides.get(agent) != new_overrides[agent]:
-            print(f"omp config {OVERRIDES}.{agent}: {overrides.get(agent)} -> {new_overrides[agent]}")
-    if not changed and new_overrides == overrides:
+    for path in removed:
+        print(f"remove {path}")
+    for agent in sorted(overrides.keys() | new_overrides.keys()):
+        if overrides.get(agent) != new_overrides.get(agent):
+            print(f"omp config {OVERRIDES}.{agent}: {overrides.get(agent)} -> {new_overrides.get(agent)}")
+    if not changed and not removed and new_overrides == overrides:
         print("no changes")
         return
     if not args.write:
@@ -215,7 +166,7 @@ def main() -> None:
         return
 
     backup = args.backup_dir or CONFIG_DIR / "backups" / time.strftime("%Y%m%d-%H%M%S")
-    touched = [path for path in changed if old[path] is not None]
+    touched = [path for path in changed if old[path] is not None] + removed
     if new_overrides != overrides and OMP_CONFIG.exists():
         touched.append(OMP_CONFIG)
     for path in touched:
@@ -227,6 +178,8 @@ def main() -> None:
     for path in changed:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(files[path])
+    for path in removed:
+        path.unlink()
     if new_overrides != overrides:
         # omp merges the one key into its config.yml and keeps every other setting.
         run(["omp", "config", "set", OVERRIDES, json.dumps(new_overrides)])
