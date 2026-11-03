@@ -1,0 +1,3 @@
+interface:
+  display_name: "To spec"
+  short_description: "Turn a discussion into a code-grounded, implementation-ready spec"
