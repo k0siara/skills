@@ -1,6 +1,6 @@
 ---
 name: babysit-pr
-description: Watches a GitHub PR in the background until it is approved and notifies the user about new human review comments, CI failure, approval and merge; analyses comments and proposes minimal fixes and replies for the user's approval; rebases on conflict; stops watching once the PR is approved; if the PR merges while watched, removes the agent's PR worktree and closes its own Herdr workspace. Use when the user asks to babysit, watch or monitor a PR, or wants to be notified about PR comments, approval or merge.
+description: "Watches a GitHub PR in the background until it is approved and notifies the user about new human review comments, CI failure, approval and merge; analyses comments and proposes minimal fixes and replies for the user's approval; rebases on conflict; stops watching once the PR is approved; if the PR merges while watched, removes the agent's PR worktree. Ends with one status line `BABYSIT: <MERGED|APPROVED|CLOSED|BLOCKED> ...`. Use when the user asks to babysit, watch or monitor a PR, or wants to be notified about PR comments, approval or merge."
 ---
 
 # Babysit PR
@@ -26,13 +26,22 @@ Use what this session has. Decide from your tool list; never call a tool only to
 
 Free-text input ("Other", custom input, note) always means "change this draft": revise and ask again.
 
+## Status line
+
+When watching ends, the last line of your final reply is exactly one status line, so a person or a script that started you can act on it:
+
+```text
+BABYSIT: <MERGED|APPROVED|CLOSED|BLOCKED> <pr-url> <short reason>
+```
+
+`MERGED` after **Merged**, `APPROVED` after **Approved**, `CLOSED` when the PR closed without merging, `BLOCKED` when you stop and report without one of those (a check below failed, the watcher stopped, the user must decide). A turn that ends with the watcher still running has no status line.
+
 ## Start
 
-1. `gh pr view <pr> --json number,url,title,state,headRefName,baseRefName,reviewDecision,mergeStateStatus`. Merged → notify `info`, then **Merged**. Closed → notify `warning` and stop. `reviewDecision` `APPROVED` → notify `info` `PR #<n>: already approved, not watching`, then **Approved**.
+1. `gh pr view <pr> --json number,url,title,state,headRefName,baseRefName,reviewDecision,mergeStateStatus`. Merged → notify `info`, then **Merged**. Closed → notify `warning` and stop with `BABYSIT: CLOSED`. `reviewDecision` `APPROVED` → notify `info` `PR #<n>: already approved, not watching`, then **Approved**.
 2. Find the local checkout of `headRefName` (`git worktree list`); if there is none, create one (**Worktree**). It must be on the PR head with a clean tree. Otherwise stop and report.
-3. If `test "${HERDR_ENV:-}" = 1` passes, rename your own workspace to the PR's ticket key: `herdr workspace rename "$HERDR_WORKSPACE_ID" <KEY>`. The key is a `[A-Z][A-Z0-9]+-[0-9]+` match at the start of the title (`[ABC-123] ...` or `ABC-123: ...`), else a case-insensitive one at the start of `headRefName` or right after a `/`, followed by `-`, `_` or the end (`abc-123-fix`, `feature/ABC-123`), uppercased. Without one, use `PR #<n>`. On error, report it and continue.
-4. Handle the current state once, because the watcher's first run records existing activity without reporting it: unanswered human comments and unresolved threads → **Comments**; `DIRTY` → **Conflict**; failed checks (`gh pr checks`) → CI notification.
-5. Start the watcher (below) and end your turn. Do not post "still waiting".
+3. Handle the current state once, because the watcher's first run records existing activity without reporting it: unanswered human comments and unresolved threads → **Comments**; `DIRTY` → **Conflict**; failed checks (`gh pr checks`) → CI notification.
+4. Start the watcher (below) and end your turn. Do not post "still waiting".
 
 ## Worktree
 
@@ -48,13 +57,16 @@ cd <path> && gh pr checkout <pr>
 
 ## Watcher
 
-One per PR. Run with the `bash` tool, `async: true`, `timeout: 0`:
+One per PR. It must run in the background and wake you with its output when it exits, so you never poll or sleep:
 
 ```bash
 <skill-dir>/scripts/pr-wait <pr-url> --until any-change
 ```
 
-It exits on the first batch of events; OMP delivers the output to you as a follow-up. Each stdout line is one event (`#<n> ...`). State lives in `~/.local/state/pr-wait/`, so nothing is lost while it is down (up to 6 h). It ignores bots and comments by the PR author or the `gh` user, so your own replies never wake it. Exit 2 with "already watches" means a watcher already runs: do not start another. Stop on user request with `proc://<job-id>/kill`.
+- OMP: the `bash` tool with `async: true`, `timeout: 0`. The output arrives as a follow-up; stop it with `proc://<job-id>/kill`.
+- Another harness: its facility for a background command that notifies you when it exits, and its way to stop that command. Without one, run it in the foreground with the longest timeout the tool allows; when it times out without output, start it again.
+
+It exits on the first batch of events. Each stdout line is one event (`#<n> ...`). State lives in `~/.local/state/pr-wait/`, so nothing is lost while it is down (up to 6 h). It ignores bots and comments by the PR author or the `gh` user, so your own replies never wake it. Exit 2 with "already watches" means a watcher already runs: do not start another. Stop it on user request.
 
 ## On wake
 
@@ -63,15 +75,15 @@ Handle every line, at most one notification per category, then restart the watch
 | Line | Action |
 |---|---|
 | `merged:` | notify `info`, stop watching, then **Merged** |
-| `closed without merging` | notify `warning`, stop watching |
+| `closed without merging` | notify `warning`, stop watching, end with `BABYSIT: CLOSED` |
 | `review from X (approved)` | notify `info`; a non-empty body goes to **Comments** first. Then `gh pr view <pr> --json reviewDecision`: `APPROVED`, or empty (the repo requires no review), → **Approved**; anything else (more approvals required) → restart |
 | `comment from`, `new thread from`, `thread reply from`, `review from X (changes requested\|commented)` | notify `info` `PR #n: <k> new comments, analysing`, then **Comments** |
 | `check failed` / `required check failed` | notify `error` with check name and link; no fix |
 | `merge state is DIRTY` | notify `warning`, then **Conflict** |
-| `pr-wait stopped:` | notify `error`; check `gh api rate_limit --jq .resources.graphql`; do not restart in a loop |
+| `pr-wait stopped:` | notify `error`; check `gh api rate_limit --jq .resources.graphql`; do not restart in a loop; end with `BABYSIT: BLOCKED` unless the user restarts it |
 | anything else (checks finished, BEHIND, base moved) | restart silently |
 
-If the session was resumed or a wake came more than 6 h after the last one, redo **Start** step 4 before restarting.
+If the session was resumed or a wake came more than 6 h after the last one, redo **Start** step 3 before restarting.
 
 ## Comments
 
@@ -105,21 +117,20 @@ Rebase the PR branch onto its base in the PR's worktree. Do not message reviewer
 
 ## Approved
 
-Stop watching this PR: do not restart the watcher (it has already exited) and kill any other watcher of this PR you started (`proc://<job-id>/kill`). Keep the worktree and the Herdr workspace: only **Merged** removes them, and after approval it no longer runs, so the user cleans up. Final reply: who approved, what was pushed or posted in this round, watching stopped, worktree path kept. Do not merge.
+Stop watching this PR: do not restart the watcher (it has already exited) and stop any other watcher of this PR you started. Keep the worktree: only **Merged** removes it, and after approval it no longer runs, so the user cleans up. Final reply: who approved, what was pushed or posted in this round, watching stopped, worktree path kept, then `BABYSIT: APPROVED`. Do not merge.
 
 ## Merged
 
-Remove your worktree, then close your own Herdr workspace as the very last action: closing it kills this agent, so finish the reply first.
+Remove your worktree when that is safe. Whatever happens here, the status is `BABYSIT: MERGED`; its reason says whether the worktree was removed or kept, and why.
 
-1. Proceed only when all hold, otherwise say why and stop: `test "${HERDR_ENV:-}" = 1`; `git branch --show-current` in the agent's working directory equals the PR's `headRefName` (the workspace was created for this PR, not the user's main checkout); this agent runs no other PR watcher.
+1. Remove nothing unless all hold, otherwise say why: `git branch --show-current` in the agent's working directory equals the PR's `headRefName` (the agent works in the PR's checkout, not on the user's main checkout); this agent runs no other PR watcher.
 2. If the working directory is a linked worktree (`git rev-parse --path-format=absolute --git-dir` differs from `--git-common-dir`), remove it:
-   - `git status --porcelain` is empty and `git rev-parse HEAD` equals the PR's `headRefOid` (`gh pr view <pr> --json headRefOid`), so nothing local is lost. Otherwise report what is left and stop without closing the workspace.
-   - `git -C "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" worktree remove "$(git rev-parse --show-toplevel)"`, never `--force`. On error, report it and stop without closing the workspace.
-3. Final reply: PR merged, worktree removed (or why none), workspace is being closed.
-4. `herdr workspace close "$HERDR_WORKSPACE_ID"`. On `workspace_group_close_required` or any other error, report it and do not add `--group`.
+   - `git status --porcelain` is empty and `git rev-parse HEAD` equals the PR's `headRefOid` (`gh pr view <pr> --json headRefOid`), so nothing local is lost. Otherwise report what is left and keep the worktree.
+   - `git -C "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" worktree remove "$(git rev-parse --show-toplevel)"`, never `--force`. On error, report it.
+3. Final reply: PR merged, worktree removed (or why not), then `BABYSIT: MERGED <pr-url> worktree removed|kept: <why>`.
 
 Do not delete the branch and do not change the issue tracker.
 
 ## Never
 
-Merge the PR, force-push outside **Conflict**, fix CI failures unprompted, run two watchers on one PR, or remove a worktree or close a Herdr workspace outside **Merged**.
+Merge the PR, force-push outside **Conflict**, fix CI failures unprompted, run two watchers on one PR, or remove a worktree outside **Merged**.

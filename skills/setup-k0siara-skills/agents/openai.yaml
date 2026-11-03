@@ -1,0 +1,3 @@
+interface:
+  display_name: "Set up k0siara skills"
+  short_description: "Choose the reviewer and verifier models and create their agents for OMP, Codex and Claude Code"
