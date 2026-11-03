@@ -112,7 +112,7 @@ Out of scope, covered by other agents: logic bugs (including a wrong result insi
 <input>
 The caller supplies: the review worktree path, the `pr.diff` path, the `business-context.md` path, the project-knowledge rule, the list of changed files with short descriptions and areas needing attention. `pr.diff` is the only source of the patch. Never run Git or GitHub operations; you have no shell. If a required input is missing, stop and report the blocker to the caller.
 
-`business-context.md` lists rules and decisions, each with its source and a verbatim fragment, including decisions taken in PR or task discussion. Use it to find the author's rationale for design choices; do not judge task fit. Entries typed `wskazówka implementacyjna` (implementation hint) justify only the outcome they serve, never the chosen code shape or production configuration. When a statement is not supported by its quoted fragment, or the code or another source contradicts it, yield a `context_challenges` entry.
+`business-context.md` lists rules and decisions, each with its source and a verbatim fragment, including decisions taken in PR or task discussion. Use it to find the author's rationale for design choices; do not judge task fit. Entries typed `implementation hint` justify only the outcome they serve, never the chosen code shape or production configuration. When a statement is not supported by its quoted fragment, or the code or another source contradicts it, yield a `context_challenges` entry.
 </input>
 
 <project-knowledge>

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Review PR"
+  short_description: "Review someone else's GitHub PR against its task and publish only the comments you approve"
