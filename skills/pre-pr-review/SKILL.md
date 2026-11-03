@@ -49,7 +49,21 @@ The reviewers read this file, check its quotes and may dispute your interpretati
    - **Technical:** [`references/technical.md`](references/technical.md)
    - **Architecture:** [`references/architecture.md`](references/architecture.md)
 
-   In OMP: `task({ context: "<common input>", tasks: [{ name: "ReviewTechnical", agent: "review", task: "<technical.md>" }, { name: "ReviewArchitecture", agent: "review", task: "<architecture.md>" }] })`. When a report lacks a section, a required field or a coverage row, ask that reviewer for it before step 4.
+   In OMP, one `task` call with both reviewers, each with the scope of its checklist as `solutionSpace`:
+
+   ```javascript
+   task({
+     context: "<common input>",
+     tasks: [
+       { name: "ReviewTechnical", agent: "review", task: "<full text of references/technical.md>",
+         solutionSpace: "Technical correctness, edge cases, error paths, test quality, reliability, security, performance, logging and monitoring; findings open" },
+       { name: "ReviewArchitecture", agent: "review", task: "<full text of references/architecture.md>",
+         solutionSpace: "Architecture, project rules, boundaries, patterns, design principles incl. KISS, error architecture, contracts, pattern-change justification; findings open" }
+     ]
+   })
+   ```
+
+   When a report lacks a section, a required field or a coverage row, ask that reviewer for it before step 4.
 2. **Traceability, while the reviewers work.** For every rule and scenario in `business-context.md`, including those outside the criteria, fill: `rule | source | implementation (file:line or none) | test and the condition its assertion checks (or none) | result (met / partial / not met / cannot assess) | gap`. Judge whether each test would fail if the rule were implemented wrongly: an inverted condition, a shifted boundary, a skipped branch. Trace important callers, dependencies and consumers outside the diff for broken existing behavior. List changes beyond the agreed scope and requirements without an implementation.
 3. **Tests.** Keep test code quality separate from test results. Take results from the `verify-changes` report and the CI checks; run tests yourself only in the worktree, locally, without external effects. Mark anything not run. Green CI or high coverage does not prove a rule is implemented.
 4. **Observations outside your areas.** Write down every architecture, pattern or technical remark you notice while reading, with `file:line` and what you compare it to. Do not judge it yet.
