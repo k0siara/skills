@@ -23,14 +23,13 @@ Defaults when nothing says otherwise:
 
 ## Stage agents
 
-`verify-changes` and `pre-pr-review` never run in your own context. Each runs in a subagent of your harness, so build logs stay out of your context and the review comes from an agent that did not write the code.
+`verify-changes` and `pre-pr-review` never run in your own context: build logs stay out of it, and the review comes from an agent that did not write the code.
 
-1. **The `review` agent.** Start each stage in a `review` subagent with your harness's subagent tool (in OMP `task` with `agent: "review"`, in Claude Code the Agent tool with `subagent_type: "review"`), one subagent per run of a stage. `review` has no instructions of its own; the stage prompt (item 2) says what to do. `setup-k0siara-skills` creates it and decides its model. Never pass a model yourself. If it does not exist or the tool cannot select it by name, start a plain subagent with the same prompt; for `pre-pr-review`, choose a model other than yours when the tool lets you.
-2. **Prompt.** Each stage prompt contains: run skill `<stage>`; the worktree path, the base ref and the `task.md` path; the report file (`verify.md` or `pre-pr-review.md` in the artifacts directory); no push, no PR, no comments, no tracker writes. For `verify-changes`, add that it may fix code inside the task's scope and must commit nothing.
-3. **Wait.** Run the subagent in the background when the tool allows, and wait for its result instead of polling.
-4. **Do not touch the worktree while a stage agent runs.** `verify-changes` edits the same files.
-5. **Collect** from the report file, not from the agent's summary. Check that it was written after the agent started and names the current `HEAD` SHA (and, for `verify-changes`, the uncommitted files you expect). A missing or stale report counts as `INCONCLUSIVE`.
-6. If a `pre-pr-review` subagent cannot start its own reviewers, run `pre-pr-review` yourself under its Independence rules: you only gather inputs and verify findings, and the reviewers run as subagents.
+1. **Start** each stage run in a fresh `review` subagent with your harness's subagent tool (in OMP `task` with `agent: "review"`, in Claude Code the Agent tool with `subagent_type: "review"`). `setup-k0siara-skills` creates it and decides its model; never pass a model. If it does not exist or cannot be selected by name, start a plain subagent with the same prompt; for `pre-pr-review`, on a model other than yours when the tool allows.
+2. **Prompt:** run skill `<stage>`; the worktree path, the base ref and the `task.md` path; the report file (`verify.md` or `pre-pr-review.md` in the artifacts directory); no push, no PR, no comments, no tracker writes. For `verify-changes`, add that it may fix code inside the task's scope and must commit nothing.
+3. **Wait** for the result in the background when the tool allows, without polling, and do not touch the worktree meanwhile: `verify-changes` edits the same files.
+4. **Collect** from the report file, not from the agent's summary. It must be written after the agent started and name the current `HEAD` SHA (for `verify-changes`, also the uncommitted files you expect). A missing or stale report counts as `INCONCLUSIVE`.
+5. If a `pre-pr-review` subagent cannot start its own reviewers, run `pre-pr-review` yourself under its Independence rules.
 
 ## Invariants
 
@@ -135,15 +134,6 @@ Run the `verify-changes` skill on the worktree with the `task.md` path: in a sta
 
 ## When to stop and ask
 
-Stop only when:
-
-- the task description is empty or materially ambiguous;
-- the repository cannot be determined;
-- two equally valid implementations exist and no pattern decides between them;
-- the change needs a breaking public-API change;
-- an existing worktree or branch holds unclear changes from someone else;
-- an action needs approval the user has not given;
-- the reviewers `pre-pr-review` requires are unavailable, or a fix contradicts the task;
-- `verify-changes` reports `FAIL` after its retry limit.
+Stop only for: an empty or materially ambiguous task; an undeterminable repository; two equally valid implementations no pattern decides; a breaking public-API change; unclear changes from someone else in an existing worktree or branch; an action that needs approval not given; unavailable required reviewers or a fix that contradicts the task; `verify-changes` `FAIL` after its retry limit.
 
 Otherwise decide from the task, the documentation and the existing code, and keep going until the PR exists.

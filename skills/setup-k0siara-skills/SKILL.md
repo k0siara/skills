@@ -12,8 +12,8 @@ Skills never name a model. Verification and review run in one agent, `review`, w
 | used by | for |
 |---|---|
 | `deliver-pr` | the `verify-changes` and `pre-pr-review` stages |
-| `pre-pr-review` | the technical and architecture reviewers |
-| `review-pr` | the technical and architecture reviewers, each prompted with its checklist |
+| `pre-pr-review` | the technical and architecture reviewers, each prompted with its checklist |
+| `review-pr` | the same reviewers, through `pre-pr-review` |
 
 This skill creates the agent in every harness it finds and records the model in one place, `~/.config/k0siara-skills/config.yml`:
 
