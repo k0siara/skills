@@ -20,49 +20,50 @@ flowchart TD
     small([Small, clear task])
     theirs([Teammate's PR])
 
-    subgraph understand["1 · Understand"]
+    subgraph understand["1 · Understand: what do we already know?"]
+        direction LR
         restate["<b>restate-problem</b><br/>did the agent get it?"]
-        why["<b>why</b><br/>what is already written down"]
-        ask["<b>ask-around</b><br/>ask the people who know"]
+        why["<b>why</b><br/>what is already<br/>written down"]
+        ask["<b>ask-around</b><br/>ask the people<br/>who know"]
+        restate --> why -- "open questions" --> ask
     end
 
     subgraph decide["2 · Decide and plan"]
+        direction LR
         spec["<b>to-spec</b><br/>decisions into a spec"]
-        tickets["<b>to-tickets</b><br/>spec into PR-sized tickets"]
+        tickets["<b>to-tickets</b><br/>spec into<br/>PR-sized tickets"]
+        spec --> tickets
     end
 
-    subgraph build["3 · Build"]
-        deliver["<b>deliver-pr</b><br/>one ticket to a verified PR"]
-        verify["<b>verify-changes</b><br/>checks, build, tests, real app"]
-        rc["<b>review-change</b><br/>independent review against the task"]
-        pr["<b>pr</b><br/>PR title and description"]
+    subgraph build["3 · Build: deliver-pr runs these for you"]
+        direction LR
+        deliver["<b>deliver-pr</b><br/>one ticket to<br/>a verified PR"]
+        verify["<b>verify-changes</b><br/>checks, build,<br/>tests, real app"]
+        rc["<b>review-change</b><br/>independent review<br/>against the task"]
+        pr["<b>pr</b><br/>PR title and<br/>description"]
+        deliver --> verify --> rc --> pr
     end
 
     subgraph ship["4 · Ship"]
-        babysit["<b>babysit-pr</b><br/>watch your PR until merged"]
+        babysit["<b>babysit-pr</b><br/>watch your PR until merged:<br/>comments, CI, conflicts"]
     end
 
-    subgraph review["Review others"]
-        reviewpr["<b>review-pr</b><br/>review and comment"]
+    subgraph others["Review others"]
+        reviewpr["<b>review-pr</b><br/>review a teammate's PR<br/>with review-change"]
     end
 
-    linear[("<b>using-linear</b><br/>tracker context and writes")]
+    linear[("<b>using-linear</b><br/>tracker context and writes,<br/>any time")]
 
-    start --> restate --> why
-    why -- "open questions" --> ask
-    ask -- "answers" --> spec
-    why -- "enough is known" --> spec
-    spec --> tickets --> deliver
-    small --> deliver
-    deliver --> verify --> rc --> pr --> babysit
-    babysit -- "comments, CI, conflicts" --> babysit
-    theirs --> reviewpr
-    reviewpr -. "runs" .-> rc
-    linear -.- tickets
-    linear -.- deliver
+    start --> understand
+    understand -- "enough is known" --> decide
+    decide --> build
+    small --> build
+    build --> ship
+    theirs --> others
+    linear -.- decide
 ```
 
-Solid arrows are the order you go in. Dotted lines are skills used from inside another one. `deliver-pr` runs `verify-changes`, `review-change` and `pr` for you; run them by hand when you build without it.
+Go top to bottom. Skip a stage when you already have its output: a small, clear task goes straight to `deliver-pr`. Inside **Build**, `deliver-pr` runs `verify-changes`, `review-change` and `pr` for you; run them by hand when you build without it.
 
 ## Which skill, when and why
 
