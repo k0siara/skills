@@ -1,6 +1,6 @@
 # Skills for Software Engineers
 
-Agent skills by [@k0siara](https://github.com/k0siara).
+Agent skills by [@k0siara](https://github.com/k0siara). They cover one path: from a fuzzy topic to a merged PR, plus reviewing other people's PRs.
 
 ## Install
 
@@ -10,20 +10,76 @@ npx skills@latest add k0siara/skills
 
 Then run the `setup-k0siara-skills` skill once (`/setup-k0siara-skills`). It asks which model reviews and verifies, and creates the `review` agent that `deliver-pr`, `review-change` and `review-pr` run their verification and review subagents in, for each harness it finds: OMP, Codex and Claude Code. The agent has no instructions of its own; each skill passes the full prompt. In OMP it runs on the model you choose; in Codex and Claude Code it uses the session's model. Without the setup these skills fall back to plain subagents.
 
-## Reference
+The skills take company-specific rules (tracker, Git, review conventions) from your workspace instructions (`AGENTS.md`, `CLAUDE.md` and the files they point to), so they carry no project knowledge themselves.
 
-| Skill | What it does | When to use |
-|---|---|---|
-| [ask-around](./skills/ask-around/SKILL.md) | Turns open questions into short, ready-to-send questions grouped per person, each stating the current assumption to confirm or correct. Checks them against the written record first (with `why`), never sends anything itself, and folds the answers back into the decision when they arrive. | When the record does not answer something and you need it from a person. Trigger: "who should I ask", "prepare questions for X", `/ask-around`. |
-| [babysit-pr](./skills/babysit-pr/SKILL.md) | Watches a GitHub PR in the background until it is approved, notifies you about review comments, CI failures and approval, proposes minimal fixes and replies for your approval, and rebases on conflict. After a merge it removes the PR's worktree. Ends with one `BABYSIT: <MERGED\|APPROVED\|CLOSED\|BLOCKED>` status line. Needs `gh` (logged in) and `python3`. | After opening a PR you want watched. Trigger: "babysit PR #123", "watch this PR", `/babysit-pr`. |
-| [deliver-pr](./skills/deliver-pr/SKILL.md) | Delivers one task (Linear, GitHub issue or a written spec) end to end in an isolated worktree: research, plan, implementation, verification and independent review, then a verified PR. Takes conventions from your workspace instructions. Runs verification and review in `review` subagents and writes the PR title and description with the `pr` skill. | When a task is ready to implement. Trigger: "deliver-pr ABC-123", "go #45", `/deliver-pr`. |
-| [pr](./skills/pr/SKILL.md) | Writes review-focused PR titles and descriptions grounded in the diff, observed verification, compatibility and rollout risks. Follows repository templates and confidentiality rules. | When preparing, opening or updating a PR. Trigger: "write a PR description", "open a PR", `/pr`. |
-| [restate-problem](./skills/restate-problem/SKILL.md) | Restates your goals and the problem you're solving in the agent's own words. | Before starting non-trivial work, to catch misunderstandings early. Trigger: "restate the problem", `/restate-problem`. |
-| [review-change](./skills/review-change/SKILL.md) | Independent, read-only review of a local branch against its task: business context from the task source, rule-to-implementation-and-test traceability, technical and architecture reviewers (`review` subagents prompted with its checklists) who did not write the code, verified findings and a PASS, ISSUES or INCONCLUSIVE verdict. | Before opening a PR for your own change. Trigger: "review my branch before the PR", `/review-change`. |
-| [review-pr](./skills/review-pr/SKILL.md) | Reviews someone else's GitHub PR in a detached worktree: business context from the task and the PR discussion written before reading the diff, rule-to-implementation-and-test traceability, then the `review-change` review core (technical and architecture `review` subagents, verified and merged findings, coverage), and proposed comments that are published only after your approval. Needs `gh` (logged in) and the `review` agent from `setup-k0siara-skills`. | When asked to review a PR. Trigger: "review PR #123", `/review-pr <PR-link>`. |
-| [setup-k0siara-skills](./skills/setup-k0siara-skills/SKILL.md) | Asks for the model that reviews and verifies, writes `~/.config/k0siara-skills/config.yml` and creates the `review` agent for OMP (with the chosen model), Codex and Claude Code; removes agents earlier versions created. Shows the diff before writing, backs up what it changes and is safe to rerun. Needs `python3`. | Once after installing, and to change the review or verification model. Trigger: "set up k0siara skills", `/setup-k0siara-skills`. |
-| [to-spec](./skills/to-spec/SKILL.md) | Turns what was already discussed into one spec grounded in the code: problem, success measure, observable scenarios with IDs, design decisions with the alternative that lost, compatibility and rollout (old clients, stored data, reversibility, release order), test seams, out of scope and open questions. Asks the remaining decisions in one numbered round with recommended answers and saves or publishes only after your approval. | When a feature or change is discussed and needs a spec, PRD or RFC before planning. Trigger: "write a spec", "spec this", `/to-spec`. |
-| [to-tickets](./skills/to-tickets/SKILL.md) | Breaks a spec or an agreed discussion into vertical-slice tickets: one repository, one PR and at most three observable acceptance criteria each, tied to the spec's scenarios, with a way to verify, binding decisions, out of scope and real blocking edges. Shows the breakdown with scenario coverage for approval, then publishes blockers first to the tracker your workspace configures (GitHub, Linear or local files), using its template and native relations. | After a spec is approved, to plan the work. Trigger: "break this into tickets", "create issues for this spec", `/to-tickets`. |
-| [using-linear](./skills/using-linear/SKILL.md) | Works with Linear in the context of your current work: reads the workspace `LINEAR.md` rules, derives team, project, parent and naming from your active issues, proposes every change for approval before running it, and audits epics against git and PRs. Needs the `linear` CLI (logged in). | Whenever you talk about Linear issues, tasks, cycles or backlog. Trigger: "create a Linear task", "what am I working on", `/using-linear`. |
-| [verify-changes](./skills/verify-changes/SKILL.md) | Finds and runs the repository's formatters, static checks, build and tests, plus a project verification skill that drives the real app when one exists. Fixes failures at the root cause within a retry limit, reviews the diff and returns PASS, FAIL or INCONCLUSIVE with evidence. | Before a commit, PR or merge. Trigger: "verify my changes", "run the checks", `/verify-changes`. |
-| [why](./skills/why/SKILL.md) | Answers what was decided, why, or how something is supposed to work from the team's written record: one read-only investigator per source (issue tracker, long-form docs such as PRDs and ERDs, pull requests, workspace notes, chat) in parallel, then a cited answer with confidence levels, conflicts between sources and open questions with who is likely to know. | Before asking people or guessing. Trigger: "why did we...", "what did we decide about X", `/why`. |
+## The workflow
+
+```mermaid
+flowchart TD
+    start([New topic, feature or question])
+    small([Small, clear task])
+    theirs([Teammate's PR])
+
+    subgraph understand["1 · Understand"]
+        restate["<b>restate-problem</b><br/>did the agent get it?"]
+        why["<b>why</b><br/>what is already written down"]
+        ask["<b>ask-around</b><br/>ask the people who know"]
+    end
+
+    subgraph decide["2 · Decide and plan"]
+        spec["<b>to-spec</b><br/>decisions into a spec"]
+        tickets["<b>to-tickets</b><br/>spec into PR-sized tickets"]
+    end
+
+    subgraph build["3 · Build"]
+        deliver["<b>deliver-pr</b><br/>one ticket to a verified PR"]
+        verify["<b>verify-changes</b><br/>checks, build, tests, real app"]
+        rc["<b>review-change</b><br/>independent review against the task"]
+        pr["<b>pr</b><br/>PR title and description"]
+    end
+
+    subgraph ship["4 · Ship"]
+        babysit["<b>babysit-pr</b><br/>watch your PR until merged"]
+    end
+
+    subgraph review["Review others"]
+        reviewpr["<b>review-pr</b><br/>review and comment"]
+    end
+
+    linear[("<b>using-linear</b><br/>tracker context and writes")]
+
+    start --> restate --> why
+    why -- "open questions" --> ask
+    ask -- "answers" --> spec
+    why -- "enough is known" --> spec
+    spec --> tickets --> deliver
+    small --> deliver
+    deliver --> verify --> rc --> pr --> babysit
+    babysit -- "comments, CI, conflicts" --> babysit
+    theirs --> reviewpr
+    reviewpr -. "runs" .-> rc
+    linear -.- tickets
+    linear -.- deliver
+```
+
+Solid arrows are the order you go in. Dotted lines are skills used from inside another one. `deliver-pr` runs `verify-changes`, `review-change` and `pr` for you; run them by hand when you build without it.
+
+## Which skill, when and why
+
+| Stage | Skill | Use it when | Why |
+|---|---|---|---|
+| Setup | [setup-k0siara-skills](./skills/setup-k0siara-skills/SKILL.md) | Once after installing, and to change the review model | Creates the `review` agent the review and verification steps run in |
+| 1 · Understand | [restate-problem](./skills/restate-problem/SKILL.md) | Before non-trivial work | Catches a misunderstanding before it costs a spec |
+| | [why](./skills/why/SKILL.md) | "What did we decide about X?", "How is X supposed to work?" | Answers from the tracker, docs, PRs and notes with sources instead of guesses, and lists what is still unknown and who knows |
+| | [ask-around](./skills/ask-around/SKILL.md) | The record does not answer something | Turns open questions into short messages per person, then folds the answers back in |
+| 2 · Decide and plan | [to-spec](./skills/to-spec/SKILL.md) | The topic is discussed and needs a spec, PRD or RFC | Settles the last decisions in one round and writes a spec another agent can implement from |
+| | [to-tickets](./skills/to-tickets/SKILL.md) | A spec is approved | Cuts it into one-PR tickets with acceptance criteria and blocking edges, published to your tracker |
+| 3 · Build | [deliver-pr](./skills/deliver-pr/SKILL.md) | A ticket or a small, clear task is ready | Takes it end to end in an isolated worktree: plan, code, verification, independent review, PR |
+| | [verify-changes](./skills/verify-changes/SKILL.md) | Before a commit, PR or merge | Proves the change with the repo's own checks and the real app, with evidence |
+| | [review-change](./skills/review-change/SKILL.md) | A branch is done and needs a second pair of eyes | Reviews it against its task with reviewers who did not write it |
+| | [pr](./skills/pr/SKILL.md) | Opening or updating a PR | Writes a description grounded in the diff and the verification that ran |
+| 4 · Ship | [babysit-pr](./skills/babysit-pr/SKILL.md) | Your PR is open | Watches it until merged, proposes fixes and replies to comments, rebases on conflict |
+| Review others | [review-pr](./skills/review-pr/SKILL.md) | A teammate asks for a review | Reviews in a detached worktree and publishes only the comments you approve |
+| Any time | [using-linear](./skills/using-linear/SKILL.md) | Anything about Linear issues, cycles or backlog | Derives team, project and parent from your current work and asks before every write |
+
+Each skill's `SKILL.md` has the full behavior, requirements and triggers.
