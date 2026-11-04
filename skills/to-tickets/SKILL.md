@@ -1,11 +1,11 @@
 ---
 name: to-tickets
-description: "Use when the user asks to break a spec, plan or discussion into tickets or issues, or to plan the work of a spec. Cuts the work into vertical slices that each fit one agent, one repository and one PR, writes every ticket so that the ticket plus its parent is the complete brief an agent needs (what, where, why, how to verify), proves that with a blind-read check, shows the exact drafts for approval and then publishes them in dependency order to the configured tracker. Triggers: to-tickets, /to-tickets, break this into tickets, create issues for <spec>, plan the work."
+description: "Use when the user asks to break a spec, plan or discussion into tickets or issues, to write a single ticket for one change, or to plan the work of a spec. Works for one standalone ticket, tickets under an existing parent, or a large plan with a new parent and many children. Cuts the work into vertical slices that each fit one agent, one repository and one PR, writes every ticket so that the ticket plus its parent is the complete brief an agent needs (what, where, why, how to verify), proves that with a blind-read check, shows the exact drafts for approval and then publishes them in dependency order to the configured tracker. Triggers: to-tickets, /to-tickets, break this into tickets, create issues for <spec>, plan the work."
 ---
 
 # To tickets
 
-Turn one spec (or an agreed discussion) into a set of tickets. Each ticket is a contract a fresh agent can pick up alone: from the tracker, without the spec, the conversation or the other tickets, it knows what to build, where, why this way, when it is done and what it waits for.
+Turn one spec (or an agreed discussion) into tickets: a single ticket, a few tickets under an existing parent, or a large plan with a new parent and many children. Each ticket is a contract a fresh agent can pick up alone: from the tracker, without the spec, the conversation or the other tickets, it knows what to build, where, why this way, when it is done and what it waits for.
 
 The set of tickets is the plan. Their blocking edges give the order; there is no separate phase document unless the workspace asks for one.
 
@@ -33,6 +33,18 @@ Read the workspace and repository instructions (`AGENTS.md`, `CLAUDE.md` and the
 For Linear, follow the `using-linear` skill for every write. Never invent labels, statuses or fields. Never mark tickets ready for an agent unless the instructions allow it.
 
 Defaults when nothing says otherwise: local files next to the spec, `<spec-dir>/<spec-slug>/tickets/<NN>-<slug>.md`, the parent as `00-parent.md`, children numbered from `01` in dependency order, one ticket per file; the spec's language; every write after explicit approval.
+
+## Pick the shape
+
+Decide the shape after grounding the work in the code (step 2), and say which one you chose when you show the drafts.
+
+| Shape | When | What gets written |
+|---|---|---|
+| **Standalone ticket** | The work fits one ticket and belongs to no existing epic | One ticket from the standalone template: the child's sections plus the parent's (problem and goal, decisions with reasons, rejected alternatives, terms) folded in. No parent is created for it. |
+| **Under an existing parent** | One or more tickets join an epic or plan that already exists | Children from the child template, plus an approved edit that adds to the existing parent whatever shared context it lacks and lists the new children. |
+| **New parent with children** | A plan with several slices and no parent yet | A new parent from the parent template, then its children. |
+
+Never create a parent just to hold one ticket. The rules below apply to every shape; for a standalone ticket "the parent" means the parent sections inside the ticket itself.
 
 ## Two layers: parent and child
 
@@ -63,10 +75,10 @@ When the work joins an existing parent, add the missing shared context to that p
 
 1. **Read the source completely.** For a spec, read its body, decisions and comments. If it has blocking open questions, stop and list them: tickets built on an open decision get rebuilt. Without a spec, check that the problem, the outcome and the scope are agreed; if not, suggest writing a spec first (`to-spec`).
 2. **Ground it in the code.** Find where each scenario lands: repositories, modules, contracts, existing tests, and the current behaviour the tickets will describe as context. Look for a prefactor that makes the change easy ("make the change easy, then make the easy change"). Send a subagent for a large area and keep only its summary.
-3. **Draft the parent, then the slices,** by the rules below. Write the full text of every ticket exactly as it will be published. Use stable placeholders only for identifiers the tracker has not assigned yet.
+3. **Pick the shape, then draft:** the parent (new, or the edit to the existing one) before its children, or the one standalone ticket, by the rules below. Write the full text of every ticket exactly as it will be published. Use stable placeholders only for identifiers the tracker has not assigned yet.
 4. **Check the drafts** against the list at the end and fix them.
 5. **Run the blind-read gate on every ticket** (below). Fix every gap it finds and rerun it for the changed tickets until it passes.
-6. **Show the drafts and ask once.** Show the full text of every ticket and of every edit to an existing ticket, never only a summary. For more than a few tickets, write them to files (one per ticket, one for edits to existing tickets), give the path, and add a compact table to the reply: per ticket title, repository, parent, blocked by, one line of behaviour, scenarios covered, number of criteria. Add the coverage line (every scenario → tickets), the tickets that can start at once and the gate result. Ask in one round: is the granularity right, are the edges real gates, should any ticket be merged or split, plus every open decision, each with your recommendation. Iterate until the user approves this exact text.
+6. **Show the drafts and ask once.** Show the full text of every ticket and of every edit to an existing ticket, never only a summary. For one or a few tickets, put the full text in the reply. For more, write them to files (one per ticket, one for edits to existing tickets), give the path, and add a compact table to the reply: per ticket title, repository, parent, blocked by, one line of behaviour, scenarios covered, number of criteria. Add the coverage line (every scenario → tickets), the tickets that can start at once and the gate result. Ask in one round: is the granularity right, are the edges real gates, should any ticket be merged or split, plus every open decision, each with your recommendation. Iterate until the user approves this exact text.
 7. **Publish in dependency order**, blockers first, so every edge points at a real identifier. Use the tracker's native parent and blocking relations where it has them, and keep the `Blocked by` sections consistent with them. Resolve every placeholder in a second pass once all identifiers exist. Read the tracker state again just before writing; if something changed since approval, show the new diff and ask again. Do not close or rewrite a parent beyond the approved edits.
 8. **Read back and report.** Fetch every published ticket from the tracker and check: no unresolved placeholder, no reference the reader cannot open, parents and relations as approved. Report what was actually written: links, relations, the tickets that can start now and the ones waiting for a person.
 
@@ -74,7 +86,7 @@ When the work joins an existing parent, add the missing shared context to that p
 
 The proof that a ticket is self-contained. It runs for every ticket, every time, before the drafts are shown.
 
-- **The reader is isolated:** a subagent that receives only the rendered text of one child and its parent chain, exactly as the tracker will show it, plus read-only access to the repository's default branch. It gets no spec, no conversation, no other ticket and no planning files. Independent tickets can go to parallel readers; the parent is also read alone once.
+- **The reader is isolated:** a subagent that receives only the rendered text of one ticket and its parent chain (none for a standalone ticket), exactly as the tracker will show it, plus read-only access to the repository's default branch. It gets no spec, no conversation, no other ticket and no planning files. Independent tickets can go to parallel readers; the parent is also read alone once.
 - **The reader returns:** what it would build and where; why it is built this way; how it would prove each acceptance criterion; every question it would have to ask; every reference it could not open; every term it could not resolve.
 - **The gate passes** when the reader's account matches the intent and it has no blocking question. A question, an unreachable reference or a wrong account is a gap in the ticket: fix the text (usually by moving context from the spec into the parent or the child), not the reader's prompt.
 - **If no isolated reader is available,** say so when showing the drafts and do not call the tickets self-contained.
@@ -89,7 +101,7 @@ The proof that a ticket is self-contained. It runs for every ticket, every time,
 - **Tests and docs live in the ticket they belong to.** No separate "write tests" or "update docs" ticket.
 - **Edges are real gates.** A ticket waits for another only when it cannot start or cannot pass without it. No cycles. Prefer independent tickets that can run in parallel.
 - **People get their own tickets.** A step only a person can do (store submission, credentials, a product sign-off, a manual test, a rollout decision) is a separate ticket that names the person and what confirms it is done.
-- **Small work stays small.** A change that fits one ticket gets one ticket, without artificial phases. Without a parent, that ticket carries the parent's sections itself.
+- **Small work stays small.** A change that fits one ticket gets one ticket, without artificial phases or a parent of its own (see "Pick the shape").
 
 ## Writing a ticket
 
