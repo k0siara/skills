@@ -1,6 +1,6 @@
 # Ticket templates
 
-Used when the project has no template of its own. A project template may change the format; the content these sections carry stays required, because a child plus its parent must be the complete brief (see the self-containment rule in `SKILL.md`). Keep every section; write `None` where nothing applies.
+Used when the project has no template of its own. A project template may change the format; the content these sections carry stays required, because a ticket plus its parent (or a standalone ticket alone) must be the complete brief (see the self-containment rule in `SKILL.md`). Keep every section; write `None` where nothing applies.
 
 ## Parent
 
@@ -63,6 +63,48 @@ Read the parent <reference> first. Repository: <repo>.
 - Tests: <tests to add or extend; the existing tests to follow as a pattern>
 - Commands: <build, test and lint commands that must pass>
 - Live: <how the result is shown in the running app or service, and what you should see>
+
+## Blocked by
+- <ticket reference>: <what it provides>, or "None (can start immediately)"
+```
+
+## Standalone ticket
+
+A single ticket with no parent. It is the child template with the parent's sections folded in, so it is the complete brief on its own.
+
+```markdown
+# <Title: the outcome this ticket delivers>
+
+Repository: <repo>.
+
+## Problem and goal
+<What is wrong or missing today, for whom, and what is true when this ticket is done.>
+
+## Context
+<How the code behaves today where this change lands (classes, modules, flows, existing tests).>
+
+## What to build
+<Behaviour, contracts, names and steps, precise enough that two agents would build the same thing.>
+
+## Decisions
+- <Decision>. Why: <reason>.
+
+## Rejected approaches
+- <Route an agent could plausibly take>. Not this, because: <reason>.
+
+## Terms
+- <Term>: <meaning>, or None.
+
+## Out of scope
+- <What an agent could plausibly add here but must not>
+
+## Acceptance criteria
+- [ ] <Observable result in a concrete situation>
+
+## How to verify
+- Tests: <tests to add or extend; the existing tests to follow as a pattern>
+- Commands: <build, test and lint commands that must pass>
+- Live: <how the result is shown, and what you should see>
 
 ## Blocked by
 - <ticket reference>: <what it provides>, or "None (can start immediately)"
