@@ -70,7 +70,7 @@ Build it from GitHub, never from the text you wrote: your submitted reviews (`gh
 
 One per PR. It runs in the background and wakes you with its output when it exits, so you never poll or sleep.
 
-Command, from this skill's directory: `scripts/review-wait <pr-url> [--interval 60] [--quiet 900]`.
+Command, from this skill's directory: `scripts/review-wait <pr-url> [--interval 120] [--quiet 900]`.
 
 - OMP: `bash` with `async: true`, `timeout: 0`. Stop it with `proc://<job-id>/kill`.
 - Other harnesses: their background facility, with the same command.
