@@ -1,0 +1,3 @@
+interface:
+  display_name: "Ask around"
+  short_description: "Turn open questions into ready-to-send questions per person, then fold the answers back in"
