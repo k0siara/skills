@@ -14,8 +14,9 @@ Needs `gh` (logged in), the `review-change` skill and the `review` agent, both f
 Before the first Git, `gh` or GitHub operation, read the instructions that apply to the repository: `AGENTS.md` and `CLAUDE.md` in the repository and its parent workspace, plus the files they point to for Git, GitHub, tracker or review rules. Follow them for every operation, reads included. Where they set something below, they win:
 
 - which repositories or PRs are reviewed at all; for an excluded PR, stop and tell the user;
-- worktree location; default `<main-checkout>/../<repo-name>.worktrees/pr-<N>`;
-- artifacts directory; default `$TMPDIR/review-pr/<repo>-pr-<N>/`;
+- work directory; default `<main-checkout>/.work/review/pr-<N>/`, inside `<main-checkout>/.work/` (`<main-checkout>` is the repository's main working tree; add `.work/` to `$(git rev-parse --git-common-dir)/info/exclude` if it is not there);
+- worktree location; default `worktree/` in the work directory;
+- artifacts directory; default the work directory itself, next to the worktree;
 - how to read tasks from the tracker;
 - PR comment rules (language, required prefix or marker); default English, no prefix.
 

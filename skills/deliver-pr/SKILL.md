@@ -18,8 +18,9 @@ Defaults when nothing says otherwise:
 
 - Base branch: the repository's default branch on `origin`.
 - Branch: `<task-id>-<3-5-word-kebab-summary>`, or `<3-5-word-kebab-summary>` without a task ID.
-- Worktree: a `.worktrees/<branch>` directory next to the repository, outside its working tree.
-- Artifacts directory: `$TMPDIR/deliver-pr/<repo>-<task-id>/`, never inside the worktree.
+- Work directory: `<main-checkout>/.work/implement/<task-id>/` (`<branch>` without a task ID), inside `<main-checkout>/.work/` (`<main-checkout>` is the repository's main working tree; add `.work/` to `$(git rev-parse --git-common-dir)/info/exclude` if it is not there). It holds all state of this run, so the user can find and clean it in one place.
+- Worktree: `worktree/` in the work directory.
+- Artifacts directory: the work directory itself, next to the worktree, never inside it.
 
 ## Stage agents
 

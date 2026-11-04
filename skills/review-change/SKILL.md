@@ -22,7 +22,7 @@ The author checks what it meant to build, so the review comes from someone else.
 - Task brief `task.md`, or a task ID or link to read.
 - Optional: the draft or published PR title and body, the latest `verify-changes` report, CI check results.
 - Optional, for an existing PR: its discussion (general comments, review bodies, inline threads with replies).
-- Artifacts directory: the one in `task.md` or given by the caller, else `$TMPDIR/review-change/<repo>-<branch>/`.
+- Artifacts directory: the one in `task.md` or given by the caller, else the parent of the worktree when it is `<main-checkout>/.work/<purpose>/<id>/worktree`, else `<main-checkout>/.work/review-change/<branch>/`, inside `<main-checkout>/.work/` (`<main-checkout>` is the repository's main working tree; add `.work/` to `$(git rev-parse --git-common-dir)/info/exclude` if it is not there).
 
 ## 1. Collect the change
 
