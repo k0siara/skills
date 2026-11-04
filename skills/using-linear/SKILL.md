@@ -81,6 +81,10 @@ linear issue create \
   --state backlog
 ```
 
+## 5. Epic audits and bulk edits
+
+When asked what is really done in an epic, or when one approved change touches several fields or issues, follow `references/epic-audit-and-bulk-edits.md`. It covers cross-checking Linear against git and PRs, multi-field `linear api` mutations with variables, safe edits to long plan descriptions, and what a parking or cancel comment must say.
+
 ## Red flags
 
 | Thought | Instead |
@@ -89,3 +93,4 @@ linear issue create \
 | "I don't know the parent or epic" | Check parents of the active issues and the rules file routing |
 | "Which naming convention?" | Rules file first, then sibling issues under the parent |
 | "I can run this change right away" | Propose it and wait for approval |
+| "Linear says Done/In Review, so it is" | Verify against the default branch and the PR state |
