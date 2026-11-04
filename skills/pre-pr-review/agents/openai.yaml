@@ -1,3 +1,0 @@
-interface:
-  display_name: "Pre-PR review"
-  short_description: "Independent, read-only review of a branch against its task before the PR"

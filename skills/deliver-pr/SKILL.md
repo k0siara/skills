@@ -11,7 +11,7 @@ Deliver exactly one task. The run ends with a verified PR URL, or with a precise
 
 Two sources adjust this skill. Read both before step 1.
 
-1. **Workspace and repository instructions** (`AGENTS.md`, `CLAUDE.md` and the files they point to, such as tracker or Git rules). They decide how to read tasks from each tracker, how a task maps to a repository, the base branch, branch naming, worktree location, the artifacts directory, commit and PR conventions, required PR reviewers, which reviewers `pre-pr-review` uses, how to run long commands, and which actions need the user's approval. When they conflict with a default below, they win.
+1. **Workspace and repository instructions** (`AGENTS.md`, `CLAUDE.md` and the files they point to, such as tracker or Git rules). They decide how to read tasks from each tracker, how a task maps to a repository, the base branch, branch naming, worktree location, the artifacts directory, commit and PR conventions, required PR reviewers, which reviewers `review-change` uses, how to run long commands, and which actions need the user's approval. When they conflict with a default below, they win.
 2. **The prompt that started you.** A caller (a person or an orchestrating agent) may add instructions: how and where to report progress, a base commit it already fetched, or a reduced scope such as "stop after the plan". Follow them for this run.
 
 Defaults when nothing says otherwise:
@@ -23,13 +23,13 @@ Defaults when nothing says otherwise:
 
 ## Stage agents
 
-`verify-changes` and `pre-pr-review` never run in your own context: build logs stay out of it, and the review comes from an agent that did not write the code.
+`verify-changes` and `review-change` never run in your own context: build logs stay out of it, and the review comes from an agent that did not write the code.
 
-1. **Start** each stage run in a fresh `review` subagent with your harness's subagent tool (in OMP `task` with `agent: "review"`, in Claude Code the Agent tool with `subagent_type: "review"`). `setup-k0siara-skills` creates it and decides its model; never pass a model. If it does not exist or cannot be selected by name, start a plain subagent with the same prompt; for `pre-pr-review`, on a model other than yours when the tool allows.
-2. **Prompt:** run skill `<stage>`; the worktree path, the base ref and the `task.md` path; the report file (`verify.md` or `pre-pr-review.md` in the artifacts directory); no push, no PR, no comments, no tracker writes. For `verify-changes`, add that it may fix code inside the task's scope and must commit nothing.
+1. **Start** each stage run in a fresh `review` subagent with your harness's subagent tool (in OMP `task` with `agent: "review"`, in Claude Code the Agent tool with `subagent_type: "review"`). `setup-k0siara-skills` creates it and decides its model; never pass a model. If it does not exist or cannot be selected by name, start a plain subagent with the same prompt; for `review-change`, on a model other than yours when the tool allows.
+2. **Prompt:** run skill `<stage>`; the worktree path, the base ref and the `task.md` path; the report file (`verify.md` or `review-change.md` in the artifacts directory); no push, no PR, no comments, no tracker writes. For `verify-changes`, add that it may fix code inside the task's scope and must commit nothing.
 3. **Wait** for the result in the background when the tool allows, without polling, and do not touch the worktree meanwhile: `verify-changes` edits the same files.
 4. **Collect** from the report file, not from the agent's summary. It must be written after the agent started and name the current `HEAD` SHA (for `verify-changes`, also the uncommitted files you expect). A missing or stale report counts as `INCONCLUSIVE`.
-5. If a `pre-pr-review` subagent cannot start its own reviewers, run `pre-pr-review` yourself under its Independence rules.
+5. If a `review-change` subagent cannot start its own reviewers, run `review-change` yourself under its Independence rules.
 
 ## Invariants
 
@@ -61,7 +61,7 @@ Open a todo list with the seven steps below. Keep at most one step `in_progress`
 6. Fetch the base branch, unless the caller supplied a fetched base commit. Create the branch and worktree from it. Confirm the full worktree path and branch name.
 7. Resume an existing branch or worktree only when it clearly belongs to this task. With unrelated or unclear changes, stop instead of overwriting them.
 8. Read the target repository's instructions and the domain documents they point to for the kind of change.
-9. Write `task.md` in the artifacts directory. It is the contract `verify-changes` and `pre-pr-review` read:
+9. Write `task.md` in the artifacts directory. It is the contract `verify-changes` and `review-change` read:
 
    ```markdown
    # <task-id>: <title>
@@ -111,7 +111,7 @@ Run the `verify-changes` skill on the worktree with the `task.md` path: in a sta
 
 1. Commit the changes locally following the repository's commit rules. Do not push.
 2. Run the `pr` skill to write the draft PR title and description to `pr-body.md` in the artifacts directory. The `pr` skill decides the format, language, repository template and content; never write the description in your own format. If the `pr` skill is not installed, stop and tell the user to install it with `npx skills@latest add k0siara/skills -g`.
-3. Run the `pre-pr-review` skill with the worktree, the base, `task.md`, `pr-body.md` and the `verify-changes` result: in a stage agent (see "Stage agents"). It reviews and does not edit.
+3. Run the `review-change` skill with the worktree, the base, `task.md`, `pr-body.md` and the `verify-changes` result: in a stage agent (see "Stage agents"). It reviews and does not edit.
 4. Fix every confirmed finding and every gap in its rules table, regardless of priority, with these exceptions:
    - outside the task's scope: do not fix; list it in the final report;
    - `missing_justification`: add the justification to `pr-body.md`; without one, simplify the code to the existing pattern;

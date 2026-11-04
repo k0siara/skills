@@ -4,7 +4,7 @@
   setup.py [--model MODEL[:EFFORT]] [--write] [--backup-dir DIR]
 
 `review` is a plain agent with no instructions of its own: the delegating prompt says what to do
-(run `verify-changes`, run `pre-pr-review`, review against a checklist). It exists so these
+(run `verify-changes`, run `review-change`, review against a checklist). It exists so these
 subagents run on a chosen model.
 
 MODEL is an OMP model selector (`provider/id`, e.g. `openai-codex/gpt-6.1-sol`, or a bare id OMP
@@ -101,7 +101,7 @@ def omp_resolve(model: str, effort: str) -> str:
 def markdown_agent(harness: str) -> str:
     lines = ["---", f"name: {json.dumps(AGENT)}", f"description: {json.dumps(DESCRIPTION)}"]
     if harness == "omp":
-        lines.append('spawns: "*"')  # pre-pr-review run in this agent starts its own reviewers
+        lines.append('spawns: "*"')  # review-change run in this agent starts its own reviewers
     return "\n".join(lines + ["---", ""]) + PROMPT
 
 

@@ -1,13 +1,13 @@
 ---
 name: review-pr
-description: "Code review of someone else's GitHub PR: detached review worktree, then the `pre-pr-review` review core (business context from the task and the PR discussion before the diff, rule-to-implementation-and-test traceability, technical and architecture `review` subagents, verified findings, coverage), then proposed GitHub comments published only after the user approves them. Triggers: review-pr <PR>, /review-pr <PR-link>, review PR, review this PR, zrób review, sprawdź PR."
+description: "Code review of someone else's GitHub PR: detached review worktree, then the `review-change` review core (business context from the task and the PR discussion before the diff, rule-to-implementation-and-test traceability, technical and architecture `review` subagents, verified findings, coverage), then proposed GitHub comments published only after the user approves them. Triggers: review-pr <PR>, /review-pr <PR-link>, review PR, review this PR, zrób review, sprawdź PR."
 ---
 
 # Review PR
 
-Review someone else's PR. You check it out read-only, run the `pre-pr-review` skill on it as the lead, and turn its verified findings into GitHub comments. Nothing is published until the user approves the exact text.
+Review someone else's PR. You check it out read-only, run the `review-change` skill on it as the lead, and turn its verified findings into GitHub comments. Nothing is published until the user approves the exact text.
 
-Needs `gh` (logged in), the `pre-pr-review` skill and the `review` agent, both from `k0siara/skills`. If `pre-pr-review` is missing, stop and tell the user to install it with `npx skills@latest add k0siara/skills -g`. If the subagent tool does not know `review`, stop and tell the user to run `setup-k0siara-skills`; do not replace the reviewers with another agent or your own review.
+Needs `gh` (logged in), the `review-change` skill and the `review` agent, both from `k0siara/skills`. If `review-change` is missing, stop and tell the user to install it with `npx skills@latest add k0siara/skills -g`. If the subagent tool does not know `review`, stop and tell the user to run `setup-k0siara-skills`; do not replace the reviewers with another agent or your own review.
 
 ## Workspace instructions
 
@@ -32,9 +32,9 @@ Allowed: reads, fetch, the review worktree and review artifacts. Not allowed: ap
 
 A missing task ID or an empty PR body does not block the review; pass it on as a fact.
 
-## 2. Run pre-pr-review
+## 2. Run review-change
 
-Run the `pre-pr-review` skill yourself, not in a subagent: you did not write this code, so you are the independent lead it describes. Give it:
+Run the `review-change` skill yourself, not in a subagent: you did not write this code, so you are the independent lead it describes. Give it:
 
 - the worktree, the base from step 1, the artifacts directory;
 - the task ID from step 1, or none;
@@ -43,7 +43,7 @@ Run the `pre-pr-review` skill yourself, not in a subagent: you did not write thi
 - the CI checks from step 1 as test results;
 - the `review` agent as the required reviewers.
 
-It writes `pr.diff`, `business-context.md` and `pre-pr-review.md` in the artifacts directory and returns findings, the traceability table, tests, coverage, rejected findings and the earlier remarks.
+It writes `pr.diff`, `business-context.md` and `review-change.md` in the artifacts directory and returns findings, the traceability table, tests, coverage, rejected findings and the earlier remarks.
 
 ## 3. Prepare the comments
 
@@ -51,7 +51,7 @@ It writes `pr.diff`, `business-context.md` and `pre-pr-review.md` in the artifac
 2. **CI.** Read once more, without waiting, the checks that were running in step 1. A failed check is a technical finding with the cause from the job log and a link; build or test failure is P0. No GitHub comment for checks, since the author sees them. List checks still running.
 3. **Comments.** Write each in its final published form, following the workspace PR comment rules, so the user approves exactly what goes to GitHub. One comment per finding without an existing thread. An architecture comment names the document, the reference files or the principle and its effect. A `missing_justification` comment asks for the rationale instead of claiming the solution is wrong. Task vs PR description mismatches go into one general comment asking the author to correct the task or the description, at the highest priority among them.
 
-Report the `pre-pr-review` result (findings with their thread links, traceability table, tests, coverage, rejected findings), then a **review summary**: two or three sentences on the PR's overall quality and one table sorted by priority, `# | priority | type (business/technical/architecture) | location | proposed GitHub comment`.
+Report the `review-change` result (findings with their thread links, traceability table, tests, coverage, rejected findings), then a **review summary**: two or three sentences on the PR's overall quality and one table sorted by priority, `# | priority | type (business/technical/architecture) | location | proposed GitHub comment`.
 
 Ask which comments to publish (all, selected numbers or none) and whether to change any text. After each change, show the full final text of the changed comments again. Go to step 4 only after the user explicitly approves publishing the last version shown.
 
@@ -59,7 +59,7 @@ Ask which comments to publish (all, selected numbers or none) and whether to cha
 
 Publish only the selected comments, with the exact approved text and locations, without notifications: one review of type COMMENT, the general comment as its body, inline comments on their lines. An inline location that does not match the diff is not published; bring it back to the user. No other comments, code changes, commits, pushes or tracker changes. "None" publishes nothing.
 
-Then remove the review artifacts: the review worktree with `git worktree remove` (not `rm`, which leaves an entry in `.git/worktrees`), and `pr.diff`, `business-context.md` and `pre-pr-review.md`. Leave other files and worktrees alone, such as the branch's working worktree. Cleanup does not authorize publishing. On a blocker, report the actual state instead of claiming success.
+Then remove the review artifacts: the review worktree with `git worktree remove` (not `rm`, which leaves an entry in `.git/worktrees`), and `pr.diff`, `business-context.md` and `review-change.md`. Leave other files and worktrees alone, such as the branch's working worktree. Cleanup does not authorize publishing. On a blocker, report the actual state instead of claiming success.
 
 ## STOP
 
