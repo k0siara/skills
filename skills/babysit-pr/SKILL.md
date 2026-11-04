@@ -45,7 +45,7 @@ BABYSIT: <MERGED|APPROVED|CLOSED|BLOCKED> <pr-url> <short reason>
 
 ## Worktree
 
-Only when no checkout of the PR branch exists. `<path>` is the worktree location the project rules name, else `<main-checkout>/../<repo-name>.worktrees/<headRefName>`.
+Only when no checkout of the PR branch exists. `<path>` is the worktree location the project rules name, else `<main-checkout>/.work/babysit/pr-<pr>/worktree`, inside `<main-checkout>/.work/` (`<main-checkout>` is the repository's main working tree; add `.work/` to `$(git rev-parse --git-common-dir)/info/exclude` if it is not there).
 
 ```bash
 git fetch origin
