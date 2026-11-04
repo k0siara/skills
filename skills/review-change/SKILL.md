@@ -1,9 +1,9 @@
 ---
-name: pre-pr-review
-description: "Use before opening a PR for a change on a local branch, to get an independent review against its task: business context from the task source, rule-to-implementation-and-test traceability, technical and architecture review by reviewers who did not write the code, verified findings and a PASS, ISSUES or INCONCLUSIVE verdict. Also the review core that `review-pr` runs on someone else's PR. Read-only: it never edits, commits, pushes or publishes; the author applies fixes. Triggers: pre-pr-review, /pre-pr-review, review my branch before the PR, independent review before PR."
+name: review-change
+description: "Use to get an independent review of a change against its task, such as a local branch before opening a PR: business context from the task source, rule-to-implementation-and-test traceability, technical and architecture review by reviewers who did not write the code, verified findings and a PASS, ISSUES or INCONCLUSIVE verdict. Also the review core that `review-pr` runs on someone else's PR. Read-only: it never edits, commits, pushes or publishes; the author applies fixes. Triggers: review-change, /review-change, review my branch before the PR, pre-PR review, independent review of this change."
 ---
 
-# Pre-PR review
+# Review change
 
 Review a finished change against its task. Intent comes first, then code. A finding counts only when it is confirmed in the code or the sources. Nothing in this skill edits code, commits, pushes, publishes comments or writes to a tracker.
 
@@ -22,7 +22,7 @@ The author checks what it meant to build, so the review comes from someone else.
 - Task brief `task.md`, or a task ID or link to read.
 - Optional: the draft or published PR title and body, the latest `verify-changes` report, CI check results.
 - Optional, for an existing PR: its discussion (general comments, review bodies, inline threads with replies).
-- Artifacts directory: the one in `task.md` or given by the caller, else `$TMPDIR/pre-pr-review/<repo>-<branch>/`.
+- Artifacts directory: the one in `task.md` or given by the caller, else `$TMPDIR/review-change/<repo>-<branch>/`.
 
 ## 1. Collect the change
 
@@ -88,7 +88,7 @@ Verdict:
 - `ISSUES`: at least one confirmed finding or table gap.
 - `INCONCLUSIVE`: a required reviewer was unavailable or an area stayed unverified.
 
-Write the report to `pre-pr-review.md` in the artifacts directory, starting with the reviewed `HEAD` SHA and the verdict, and return it:
+Write the report to `review-change.md` in the artifacts directory, starting with the reviewed `HEAD` SHA and the verdict, and return it:
 
 1. **Findings** in three groups. Each has priority, location (`file:line`, `task <ID>` or `PR description`), description, evidence, suggested fix, source reviewer (architecture findings also their `reference`), and a handling class for the author: `fix`, `out of scope`, `justify or simplify` (for `missing_justification`), `fix PR description` or `tracker correction` (for task vs PR mismatches), or `ask user` (needs a breaking change or contradicts the task).
    - Confirmed problems: `defect`, `observability_gap`, rules not met.
