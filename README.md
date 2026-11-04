@@ -75,7 +75,7 @@ Go top to bottom. Skip a stage when you already have its output: a small, clear 
 | | [why](./skills/why/SKILL.md) | "What did we decide about X?", "How is X supposed to work?" | Answers from the tracker, docs, PRs and notes with sources instead of guesses, and lists what is still unknown and who knows |
 | | [ask-around](./skills/ask-around/SKILL.md) | The record does not answer something | Turns open questions into short messages per person, then folds the answers back in |
 | 2 · Decide and plan | [to-spec](./skills/to-spec/SKILL.md) | The topic is discussed and needs a spec, PRD or RFC | Settles the last decisions in one round and writes a spec another agent can implement from |
-| | [to-tickets](./skills/to-tickets/SKILL.md) | A spec is approved | Cuts it into one-PR tickets with acceptance criteria and blocking edges, published to your tracker |
+| | [to-tickets](./skills/to-tickets/SKILL.md) | A spec is approved | Cuts it into self-contained one-PR tickets (parent + child = the full brief, checked by a blind read), with blocking edges, published to your tracker |
 | 3 · Build | [deliver-pr](./skills/deliver-pr/SKILL.md) | A ticket or a small, clear task is ready | Takes it end to end in an isolated worktree: plan, code, verification, independent review, PR |
 | | [verify-changes](./skills/verify-changes/SKILL.md) | Before a commit, PR or merge | Proves the change with the repo's own checks and the real app, with evidence |
 | | [review-change](./skills/review-change/SKILL.md) | A branch is done and needs a second pair of eyes | Reviews it against its task with reviewers who did not write it |
