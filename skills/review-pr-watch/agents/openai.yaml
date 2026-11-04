@@ -1,0 +1,3 @@
+interface:
+  display_name: "Review PR Watch"
+  short_description: "Review someone else's GitHub PR, then watch it and re-check the author's fixes until you approve"

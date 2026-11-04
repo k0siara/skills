@@ -50,6 +50,7 @@ flowchart TD
 
     subgraph others["Review others"]
         reviewpr["<b>review-pr</b><br/>review a teammate's PR<br/>with review-change"]
+        reviewwatch["<b>review-pr-watch</b><br/>review, then watch until approved<br/>and re-check the author's fixes"]
     end
 
     linear[("<b>using-linear</b><br/>tracker context and writes,<br/>any time")]
@@ -81,6 +82,7 @@ Go top to bottom. Skip a stage when you already have its output: a small, clear 
 | | [pr](./skills/pr/SKILL.md) | Opening or updating a PR | Writes a description grounded in the diff and the verification that ran |
 | 4 · Ship | [babysit-pr](./skills/babysit-pr/SKILL.md) | Your PR is open | Watches it until merged, proposes fixes and replies to comments, rebases on conflict |
 | Review others | [review-pr](./skills/review-pr/SKILL.md) | A teammate asks for a review | Reviews in a detached worktree and publishes only the comments you approve |
+| | [review-pr-watch](./skills/review-pr-watch/SKILL.md) | You reviewed a PR and want to follow it until you approve | Re-checks the author's fixes and replies in code, drafts replies for your approval, and watches the PR in the background until it merges or closes |
 | Any time | [using-linear](./skills/using-linear/SKILL.md) | Anything about Linear issues, cycles or backlog | Derives team, project and parent from your current work and asks before every write |
 
 Each skill's `SKILL.md` has the full behavior, requirements and triggers.
