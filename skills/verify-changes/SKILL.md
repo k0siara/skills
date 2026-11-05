@@ -12,22 +12,28 @@ Prove that the current changes work, with evidence a reviewer can rerun. "It com
 - Worktree: the given path, else the current directory.
 - Base: the given ref, else the merge base with the repository's default branch on `origin`.
 - Task brief: an optional `task.md` (goal, acceptance criteria, artifacts directory). Without it, take the goal from the user's request.
+- Previous report: an optional earlier `verify.md` for the same change. When given, rerun only the checks the changes since its `HEAD` can affect and carry the other results over, marked with the SHA they ran on.
 
 Run nothing against production systems or live customer data.
 
 ## 1. Find the checks
 
-Collect the checks the repository expects, in this order of authority:
+Local verification gives fast feedback on the changed code. CI runs the full matrix after the PR is opened; do not repeat it locally.
 
-1. Repository instructions: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, and the directories on the path of each changed file.
-2. CI configuration, such as `.github/workflows/`, for the jobs that run on a PR.
-3. Build files: package scripts, Gradle tasks, Makefile targets, Xcode schemes and similar.
+Collect the local checks in this order of authority:
 
-Group them as: format, static checks (lint, types), build, tests. For tests, run the suites that cover the changed modules, plus everything the repository requires before a PR. Note any check you cannot find a command for.
+1. Repository instructions: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, the pre-submit checklists they point to, and the directories on the path of each changed file. Checks they list for before a PR are required; conditional ones (for example "screenshot tests if UI changed") only when the condition holds.
+2. Build files: package scripts, Gradle tasks, Makefile targets, Xcode schemes and similar, to find the commands and scope them to the changed modules.
+
+When the instructions name no local checks, the default is: format, static checks of the changed modules, one build that compiles the changed code into the app, and the tests of the changed modules.
+
+Read the CI configuration (such as `.github/workflows/`) only to learn what runs after the PR. Do not run a CI job locally because it exists in CI: release and variant builds, full test or screenshot suites, full end-to-end suites and similar matrix jobs go to "Deferred to CI" in the report. Run one locally only when the instructions require it or it is the only way to prove the changed behavior.
+
+Group the checks as: format, static checks (lint, types), build, tests. Scope tests and screenshot checks to the changed modules when the build allows it. Note any check you cannot find a command for.
 
 ## 2. Add runtime proof for user-visible changes
 
-Tests show branch behavior, not that the product works. When the change alters what a user sees or does, look for a project verification skill (a skill named `verify-<app>`, or one the instructions name) for that surface. Run it for the affected flows and keep its evidence: screenshots, recordings, logs or responses.
+Tests show branch behavior, not that the product works. When the change alters what a user sees or does, look for a project verification skill (a skill named `verify-<app>`, or one the instructions name) for that surface. Run it for the affected flows only, never the whole end-to-end suite, and keep its evidence: screenshots, recordings, logs or responses. A change with no user-visible effect (refactoring, internal wiring) needs no runtime proof; its tests and CI's end-to-end jobs cover it.
 
 No such skill, or no environment to run it (device, simulator, credentials): record runtime behavior as unverified, with the reason. Do not substitute a guess.
 
@@ -52,10 +58,10 @@ No such skill, or no environment to run it (device, simulator, credentials): rec
 
 ## 6. Report
 
-Results apply to the final state of the tree. If you edit anything after a check, rerun it.
+Results apply to the final state of the tree. If you edit anything after a check, rerun the checks that edit can affect (a rename: the build and the tests of the touched modules), not the whole set.
 
 - `PASS`: every required check ran on the final tree and passed, and the diff review found nothing left.
 - `FAIL`: a required check fails after the retry limit, or the diff review found a problem you could not resolve.
-- `INCONCLUSIVE`: everything that ran passed, but a required check or the runtime proof could not run. Name each one and why.
+- `INCONCLUSIVE`: everything that ran passed, but a required check or the runtime proof could not run. Name each one and why. Checks deferred to CI are not required locally and do not make the result `INCONCLUSIVE`.
 
-Start the report with the `HEAD` SHA and the list of uncommitted files it covers. Then a table, `check | command | result | evidence`, followed by unverified items and pre-existing failures. When a task brief names an artifacts directory, also write the report to `verify.md` there.
+Start the report with the `HEAD` SHA and the list of uncommitted files it covers. Then a table, `check | command | result | evidence`, followed by unverified items, pre-existing failures and "Deferred to CI" (each CI check left to the PR, one line each). When a task brief names an artifacts directory, also write the report to `verify.md` there.

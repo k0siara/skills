@@ -108,6 +108,8 @@ Run the `verify-changes` skill on the worktree with the `task.md` path: in a sta
 - `FAIL` after its retry limit: stop and show the evidence.
 - `INCONCLUSIVE`: continue only when every check the repository requires passed and the missing check is one this environment cannot run (for example, no device). Carry the gap into the PR's verification section.
 
+Checks `verify-changes` deferred to CI are not gaps: the PR's verification section says they run in CI.
+
 ## 6. Pre-PR review
 
 1. Commit the changes locally following the repository's commit rules. Do not push.
@@ -118,7 +120,7 @@ Run the `verify-changes` skill on the worktree with the `task.md` path: in a sta
    - `missing_justification`: add the justification to `pr-body.md`; without one, simplify the code to the existing pattern;
    - mismatch between the draft PR and the task: fix `pr-body.md`; an error on the task's side becomes a tracker proposal in step 7;
    - a fix that needs a breaking public-API change or contradicts the task or a recorded decision: stop and ask.
-5. Run step 5 again, in a fresh stage agent. Commit the fixes locally. Before the first push you may fold them into existing commits; after it, add new commits. Review the diff of the fixes yourself. Do not rerun the reviewers. Then run the `pr` skill again to refresh `pr-body.md` from the final diff and the latest verification and review results.
+5. Commit the fixes locally. Run step 5 again in a fresh stage agent, scoped to the fixes: pass the previous `verify.md` as its previous report, so it reruns only the checks the fixes can affect. Before the first push you may fold them into existing commits; after it, add new commits. Review the diff of the fixes yourself. Do not rerun the reviewers. Then run the `pr` skill again to refresh `pr-body.md` from the final diff and the latest verification and review results.
 
 ## 7. Finish
 
