@@ -2,6 +2,7 @@
 """pr-wait: watch one GitHub pull request and print one line per real event.
 
   pr-wait <pr> [--repo owner/name] [--until green|ready|any-change] [--interval 60]
+          [--ignore-check REGEX]...
 
 <pr> is a PR number or PR URL. Without --repo, the repo comes from the URL or
 from the current checkout. Stdout carries only events, one line each, so
@@ -14,6 +15,18 @@ Progress and errors that do not end the run go to stderr.
   ready       green, no review thread is unresolved and the branch is not
               BEHIND its base (default)
   any-change  stop after the first poll that prints an event
+
+--ignore-check REGEX
+  Skip every check whose name matches REGEX (Python re.search, repeatable): it
+  never wakes the watcher, never gates green or ready, and is left out of the
+  summary line, which only counts how many were ignored. Required checks too.
+  Added to the patterns from the config file.
+
+Config file
+  $XDG_CONFIG_HOME/babysit-pr/config.json (default ~/.config/babysit-pr/), or
+  the path in $BABYSIT_PR_CONFIG. Optional. Check-name regexes to ignore, per
+  repository ("owner/name") or for all ("*"):
+    {"ignoreChecks": {"*": [], "owner/name": ["^E2E:"]}}
 
 Exit codes
   0  the --until condition is met, or the PR merged
@@ -56,6 +69,10 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 STATE_DIR = Path.home() / ".local" / "state" / "pr-wait"
+CONFIG = Path(
+    os.environ.get("BABYSIT_PR_CONFIG")
+    or Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "babysit-pr" / "config.json"
+)
 # A state file older than this describes an old session. Start a fresh baseline
 # instead of replaying hours of comments as new events.
 STALE_STATE_SECONDS = 6 * 3600
@@ -178,6 +195,26 @@ def parse_target(raw: str | None, repo: str | None) -> tuple[str, int]:
     return repo, pr
 
 
+def config_ignores(repo: str) -> list[str]:
+    """Check-name regexes to ignore for this repo, from the optional config file."""
+    try:
+        data = json.loads(CONFIG.read_text())
+    except FileNotFoundError:
+        return []
+    except (OSError, ValueError) as error:
+        fail(f"cannot read {CONFIG}: {error}")
+    table = data.get("ignoreChecks", {}) if isinstance(data, dict) else None
+    if not isinstance(table, dict):
+        fail(f"{CONFIG}: ignoreChecks must map \"owner/name\" or \"*\" to a list of regexes")
+    patterns: list[str] = []
+    for key in ("*", repo):
+        value = table.get(key, [])
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            fail(f"{CONFIG}: ignoreChecks[{key!r}] must be a list of regexes")
+        patterns.extend(value)
+    return patterns
+
+
 def lock(repo: str, pr: int) -> Any:
     """Hold a per-PR lock for the life of the process. The OS drops it on exit."""
     STATE_DIR.mkdir(parents=True, exist_ok=True)
@@ -220,8 +257,10 @@ def required_checks(repo: str, base: str) -> set[str]:
 
 
 class Watcher:
-    def __init__(self, repo: str, pr: int, until: str, interval: int) -> None:
+    def __init__(self, repo: str, pr: int, until: str, interval: int, ignore: Sequence[re.Pattern[str]] = ()) -> None:
         self.repo, self.pr, self.until, self.interval = repo, pr, until, interval
+        self.ignore = list(ignore)
+        self.ignored = 0
         self.owner, self.name = repo.split("/")
         self.path = STATE_DIR / f"{repo.replace('/', '__')}__{pr}.json"
         state = self.load()
@@ -288,11 +327,19 @@ class Watcher:
                 return {}
             raise GhError(proc.stderr.strip() or f"gh pr checks exited {proc.returncode}", False)
         checks: dict[str, Json] = {}
+        ignored: set[str] = set()
         for row in json.loads(proc.stdout):
+            if self.ignored_name(row["name"]):
+                ignored.add(row["name"])
+                continue
             current = checks.get(row["name"])
             if current is None or RANK.get(row["bucket"], 2) > RANK.get(current["bucket"], 2):
                 checks[row["name"]] = row
+        self.ignored = len(ignored)
         return checks
+
+    def ignored_name(self, name: str) -> bool:
+        return any(pattern.search(name) for pattern in self.ignore)
 
     def base_overlap(self, head: str, old: str, new: str) -> list[str]:
         """Files this PR touches that the new base commits also touch."""
@@ -324,9 +371,10 @@ class Watcher:
 
         base = pr["baseRefName"]
         if self.required is None:
-            self.required = required_checks(self.repo, base)
+            self.required = {n for n in required_checks(self.repo, base) if not self.ignored_name(n)}
             gate = ", ".join(sorted(self.required)) or "none set, so every CI check gates"
-            log(f"watching {self.repo}#{self.pr} until {self.until}; required checks: {gate}")
+            skip = f"; ignoring checks matching {', '.join(p.pattern for p in self.ignore)}" if self.ignore else ""
+            log(f"watching {self.repo}#{self.pr} until {self.until}; required checks: {gate}{skip}")
         checks = self.fetch_checks()
         head = pr["headRefOid"]
         short = head[:7]
@@ -414,6 +462,7 @@ class Watcher:
         parts = [
             ", ".join(f"{n} {b}" for b, n in sorted(counts.items()))
             + (f" ({', '.join(failed_names)})" if failed_names else ""),
+            f"{self.ignored} ignored" if self.ignored else "",
             f"required {sum(bucket(n) in ('pass', 'skipping') for n in self.required)}/{len(self.required)} green"
             if self.required
             else "",
@@ -472,10 +521,18 @@ def main() -> None:
     parser.add_argument("--repo", help="owner/name (default: from the URL or the current checkout)")
     parser.add_argument("--until", choices=("green", "ready", "any-change"), default="ready")
     parser.add_argument("--interval", type=int, default=60, help="seconds between polls (default 60, min 5)")
+    parser.add_argument(
+        "--ignore-check", action="append", default=[], metavar="REGEX",
+        help="skip checks whose name matches REGEX (repeatable)",
+    )
     args = parser.parse_args()
     repo, pr = parse_target(args.pr, args.repo)
+    try:
+        ignore = [re.compile(raw) for raw in [*config_ignores(repo), *args.ignore_check]]
+    except re.error as error:
+        fail(f"bad ignore-check regex: {error}")
     _lock = lock(repo, pr)
-    Watcher(repo, pr, args.until, max(args.interval, 5)).run()
+    Watcher(repo, pr, args.until, max(args.interval, 5), ignore).run()
 
 
 if __name__ == "__main__":
