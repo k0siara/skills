@@ -52,10 +52,10 @@ The reviewers read this file, check its quotes and may dispute your interpretati
 
 When in doubt, the change is risky. Anything not small and safe is risky.
 
-**Precedence:** reviewers or a reviewer count named by the workspace instructions or the caller override the classification: one reviewer takes both checklists, two take one each. Naming only the agent (such as `review`) is not a count; the classification still decides.
+**Precedence:** the workspace instructions or the caller override the classification only with an explicit reviewer count, or a separate reviewer named for each checklist. One reviewer takes both checklists, two take one each. Naming a reviewer or agent (such as `review` or `code-reviewer`) only chooses who reviews; the classification still decides how many.
 
-1. **Start the reviewers**, in one subagent call when the tool allows. Each reviewer's task is the full text of its reference file or files, read by you and passed verbatim, plus the common input:
-   - **Small and safe: one reviewer** gets both checklists, [`references/technical.md`](references/technical.md) then [`references/architecture.md`](references/architecture.md), and reports both scopes.
+1. **Start the reviewers**, in one subagent call when the tool allows. Each reviewer's task is the full text of its reference file or files, read by you and passed verbatim, plus the common input. A reviewer with both checklists also gets the report instruction from the small-and-safe point below.
+   - **Small and safe: one reviewer** gets both checklists, [`references/technical.md`](references/technical.md) then [`references/architecture.md`](references/architecture.md), and reports both scopes as two complete labelled reports, Technical and Architecture, each in the output format of its own checklist, so no section, verdict or coverage row is merged or lost. The coverage rows stay apart, as two reviewers' reports would.
    - **Risky: two reviewers in parallel**, one per checklist:
      - **Technical:** [`references/technical.md`](references/technical.md)
      - **Architecture:** [`references/architecture.md`](references/architecture.md)
@@ -74,7 +74,7 @@ When in doubt, the change is risky. Anything not small and safe is risky.
    })
    ```
 
-   One reviewer: the same call with a single entry, `name: "ReviewAll"`, whose `task` is the full text of both files and whose `solutionSpace` joins the two scopes above. Ask it for two complete labelled reports, Technical and Architecture, each in the output format of its own checklist, so no section, verdict or coverage row is merged or lost. The coverage rows stay apart, as two reviewers' reports would.
+  One reviewer: the same call with a single entry, `name: "ReviewAll"`, whose `task` is the full text of both files and whose `solutionSpace` joins the two scopes above.
 
    When a report lacks a section, a required field or a coverage row, ask that reviewer for it before step 4.
 2. **Traceability, while the reviewers work.** For every rule and scenario in `business-context.md`, including those outside the criteria, fill: `rule | source | implementation (file:line or none) | test and the condition its assertion checks (or none) | result (met / partial / not met / cannot assess) | gap`. Judge whether each test would fail if the rule were implemented wrongly: an inverted condition, a shifted boundary, a skipped branch. Trace important callers, dependencies and consumers outside the diff for broken existing behavior. List changes beyond the agreed scope and requirements without an implementation.
@@ -101,7 +101,7 @@ Verdict:
 - `ISSUES`: at least one confirmed finding or table gap.
 - `INCONCLUSIVE`: a required reviewer was unavailable or an area stayed unverified.
 
-Write the report to `review-change.md` in the artifacts directory, starting with the reviewed `HEAD` SHA, the verdict and one classification line, and return it. The classification line says whether the change was small and safe or risky, and why: the changed-line count after exclusions and the risk areas hit, or "none"; or that the workspace instructions or the caller set the reviewers. It shows why there was one reviewer or two. Example: `Classification: small and safe (40 lines, no risk area), 1 reviewer`.
+Write the report to `review-change.md` in the artifacts directory, starting with the reviewed `HEAD` SHA, the verdict and one classification line, and return it. The classification line says whether the change was small and safe or risky, and why: the changed-line count after exclusions and the risk areas hit, or "none"; or that the workspace instructions or the caller set the reviewers. It shows why there was one reviewer or two. Example: `Classification: small and safe (40 lines, risk areas: none), 1 reviewer`.
 
 1. **Findings** in three groups. Each has priority, location (`file:line`, `task <ID>` or `PR description`), description, evidence, suggested fix, source reviewer (architecture findings also their `reference`), and a handling class for the author: `fix`, `out of scope`, `justify or simplify` (for `missing_justification`), `fix PR description` or `tracker correction` (for task vs PR mismatches), or `ask user` (needs a breaking change or contradicts the task).
    - Confirmed problems: `defect`, `observability_gap`, rules not met.
