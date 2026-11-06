@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: "Code review of someone else's GitHub PR: detached review worktree, then the `review-change` review core (business context from the task and the PR discussion before the diff, rule-to-implementation-and-test traceability, technical and architecture `review` subagents, verified findings, coverage), then proposed GitHub comments published only after the user approves them. Triggers: review-pr <PR>, /review-pr <PR-link>, review PR, review this PR, zrób review, sprawdź PR."
+description: "Code review of someone else's GitHub PR: detached review worktree, then the `review-change` review core (business context from the task and the PR discussion before the diff, rule-to-implementation-and-test traceability, `review` reviewers per its change classification, verified findings, coverage), then proposed GitHub comments published only after the user approves them. Triggers: review-pr <PR>, /review-pr <PR-link>, review PR, review this PR, zrób review, sprawdź PR."
 ---
 
 # Review PR

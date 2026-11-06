@@ -74,7 +74,7 @@ When in doubt, the change is risky. Anything not small and safe is risky.
    })
    ```
 
-   One reviewer: the same call with a single entry, `name: "ReviewAll"`, whose `task` is the full text of both files and whose `solutionSpace` joins the two scopes above. Its report keeps the technical and architecture coverage rows apart, as two reviewers' reports would.
+   One reviewer: the same call with a single entry, `name: "ReviewAll"`, whose `task` is the full text of both files and whose `solutionSpace` joins the two scopes above. Ask it for two complete labelled reports, Technical and Architecture, each in the output format of its own checklist, so no section, verdict or coverage row is merged or lost. The coverage rows stay apart, as two reviewers' reports would.
 
    When a report lacks a section, a required field or a coverage row, ask that reviewer for it before step 4.
 2. **Traceability, while the reviewers work.** For every rule and scenario in `business-context.md`, including those outside the criteria, fill: `rule | source | implementation (file:line or none) | test and the condition its assertion checks (or none) | result (met / partial / not met / cannot assess) | gap`. Judge whether each test would fail if the rule were implemented wrongly: an inverted condition, a shifted boundary, a skipped branch. Trace important callers, dependencies and consumers outside the diff for broken existing behavior. List changes beyond the agreed scope and requirements without an implementation.
