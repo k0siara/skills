@@ -12,8 +12,8 @@ Review a finished change against its task. Intent comes first, then code. A find
 The author checks what it meant to build, so the review comes from someone else.
 
 - Prefer running this whole skill in an agent that did not write the change, such as `review` (`deliver-pr` does this). The workspace instructions may name another.
-- If the author runs it, the author only gathers inputs, fills the traceability table and verifies findings. The technical and architecture reviews still come from separate reviewers.
-- **Reviewers:** the ones the workspace instructions name. Otherwise two `review` agents, started by name with your harness's subagent tool (in OMP `task` with `agent: "review"`, in Claude Code the Agent tool with `subagent_type: "review"`). `setup-k0siara-skills` creates that agent and decides its model; never pass a model yourself. If it does not exist or the tool cannot select it by name, start two independent read-only subagents, preferably on a different model family than the author's. Never use a harness's bundled generic reviewer instead.
+- If the author runs it, the author only gathers inputs, fills the traceability table and verifies findings. The technical and architecture reviews still come from reviewers, not from the author.
+- **Reviewers:** how many and which are set in step 3. The default is `review` agents, started by name with your harness's subagent tool (in OMP `task` with `agent: "review"`, in Claude Code the Agent tool with `subagent_type: "review"`). `setup-k0siara-skills` creates that agent and decides its model; never pass a model yourself. If it does not exist or the tool cannot select it by name, start independent read-only subagents instead, preferably on a different model family than the author's. Never use a harness's bundled generic reviewer instead.
 - If the instructions or the caller require reviewers that are unavailable, stop with `INCONCLUSIVE` and report the blocker. Do not replace them with your own review.
 
 ## Inputs
@@ -45,11 +45,22 @@ The reviewers read this file, check its quotes and may dispute your interpretati
 
 **Common reviewer input:** the project-knowledge rule above, verbatim; the worktree path; the `pr.diff` path; the `business-context.md` path; the changed files with summaries; areas needing attention. Never pass the earlier remarks or one reviewer's results to the other. Reviewers only read and never touch Git or GitHub.
 
-1. **Start both reviewers in parallel**, in one subagent call when the tool allows. Each reviewer's task is the full text of its reference file, read by you and passed verbatim, plus the common input:
-   - **Technical:** [`references/technical.md`](references/technical.md)
-   - **Architecture:** [`references/architecture.md`](references/architecture.md)
+**Classify the change, before starting any reviewer.** A change is *small and safe* when both hold:
 
-   In OMP, one `task` call with both reviewers, each with the scope of its checklist as `solutionSpace`:
+- It has at most 200 changed lines (added + removed) in `pr.diff`, not counting lockfiles (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Podfile.lock`, `pubspec.lock`, `Gemfile.lock`, `poetry.lock`, `Cargo.lock`, `go.sum` and the like), generated files (marked as generated or in build/dist directories) and binary files. `git diff --numstat <base>...HEAD` gives the counts per file; binary files show `-`.
+- It touches no risk area, judged by paths and diff content: public API and contracts (`*Request`/`*Response`, endpoints, schemas, events), migrations and database schema, authorization and authentication, secrets and keys, deployment and CI configuration (`.github/workflows`, deploy files, infrastructure), permissions and personal data. A risk area is a part of the change where a mistake breaks working clients, data or security.
+
+When in doubt, the change is risky. Anything not small and safe is risky.
+
+**Precedence:** the workspace instructions or the caller override the classification only with an explicit reviewer count, or a separate reviewer named for each checklist. One reviewer takes both checklists, two take one each. Naming a reviewer or agent (such as `review` or `code-reviewer`) only chooses who reviews; the classification still decides how many.
+
+1. **Start the reviewers**, in one subagent call when the tool allows. Each reviewer's task is the full text of its reference file or files, read by you and passed verbatim, plus the common input. A reviewer with both checklists also gets the report instruction from the small-and-safe point below.
+   - **Small and safe: one reviewer** gets both checklists, [`references/technical.md`](references/technical.md) then [`references/architecture.md`](references/architecture.md), and reports both scopes as two complete labelled reports, Technical and Architecture, each in the output format of its own checklist, so no section, verdict or coverage row is merged or lost. The coverage rows stay apart, as two reviewers' reports would.
+   - **Risky: two reviewers in parallel**, one per checklist:
+     - **Technical:** [`references/technical.md`](references/technical.md)
+     - **Architecture:** [`references/architecture.md`](references/architecture.md)
+
+   In OMP, one `task` call, each reviewer with the scope of its checklist(s) as `solutionSpace`. Two reviewers:
 
    ```javascript
    task({
@@ -62,6 +73,8 @@ The reviewers read this file, check its quotes and may dispute your interpretati
      ]
    })
    ```
+
+  One reviewer: the same call with a single entry, `name: "ReviewAll"`, whose `task` is the full text of both files and whose `solutionSpace` joins the two scopes above.
 
    When a report lacks a section, a required field or a coverage row, ask that reviewer for it before step 4.
 2. **Traceability, while the reviewers work.** For every rule and scenario in `business-context.md`, including those outside the criteria, fill: `rule | source | implementation (file:line or none) | test and the condition its assertion checks (or none) | result (met / partial / not met / cannot assess) | gap`. Judge whether each test would fail if the rule were implemented wrongly: an inverted condition, a shifted boundary, a skipped branch. Trace important callers, dependencies and consumers outside the diff for broken existing behavior. List changes beyond the agreed scope and requirements without an implementation.
@@ -88,7 +101,7 @@ Verdict:
 - `ISSUES`: at least one confirmed finding or table gap.
 - `INCONCLUSIVE`: a required reviewer was unavailable or an area stayed unverified.
 
-Write the report to `review-change.md` in the artifacts directory, starting with the reviewed `HEAD` SHA and the verdict, and return it:
+Write the report to `review-change.md` in the artifacts directory, starting with the reviewed `HEAD` SHA, the verdict and one classification line, and return it. The classification line says whether the change was small and safe or risky, and why: the changed-line count after exclusions and the risk areas hit, or "none"; or that the workspace instructions or the caller set the reviewers. It shows why there was one reviewer or two. Example: `Classification: small and safe (40 lines, risk areas: none), 1 reviewer`.
 
 1. **Findings** in three groups. Each has priority, location (`file:line`, `task <ID>` or `PR description`), description, evidence, suggested fix, source reviewer (architecture findings also their `reference`), and a handling class for the author: `fix`, `out of scope`, `justify or simplify` (for `missing_justification`), `fix PR description` or `tracker correction` (for task vs PR mismatches), or `ask user` (needs a breaking change or contradicts the task).
    - Confirmed problems: `defect`, `observability_gap`, rules not met.
