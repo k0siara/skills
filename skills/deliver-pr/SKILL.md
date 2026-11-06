@@ -11,7 +11,7 @@ Deliver exactly one task. The run ends with a verified PR URL, or with a precise
 
 Two sources adjust this skill. Read both before step 1.
 
-1. **Workspace and repository instructions** (`AGENTS.md`, `CLAUDE.md` and the files they point to, such as tracker or Git rules). They decide how to read tasks from each tracker, how a task maps to a repository, the base branch, branch naming, worktree location, the artifacts directory, commit and PR conventions, required PR reviewers, which reviewers `review-change` uses, how to run long commands, and which actions need the user's approval. When they conflict with a default below, they win.
+1. **Workspace and repository instructions** (`AGENTS.md`, `CLAUDE.md` and the files they point to, such as tracker or Git rules). They decide how to read tasks from each tracker, how a task maps to a repository, the base branch, branch naming, worktree location, the artifacts directory, commit and PR conventions, required PR reviewers, which reviewers `review-change` uses and how many, how to run long commands, and which actions need the user's approval. When they conflict with a default below, they win.
 2. **The prompt that started you.** A caller (a person or an orchestrating agent) may add instructions: how and where to report progress, a base commit it already fetched, or a reduced scope such as "stop after the plan". Follow them for this run.
 
 Defaults when nothing says otherwise:

@@ -42,7 +42,7 @@ Run the `review-change` skill yourself, not in a subagent: you did not write thi
 - the PR title and body as the PR description;
 - the PR discussion from step 1;
 - the CI checks from step 1 as test results;
-- the `review` agent as the required reviewers.
+- the `review` agent as the reviewer agent. It sets no reviewer count; `review-change` decides that.
 
 It writes `pr.diff`, `business-context.md` and `review-change.md` in the artifacts directory and returns findings, the traceability table, tests, coverage, rejected findings and the earlier remarks.
 
