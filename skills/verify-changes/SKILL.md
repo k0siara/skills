@@ -41,6 +41,8 @@ No such skill, or no environment to run it (device, simulator, credentials): rec
 
 - Run format first. Formatters rewrite files, so review what they changed and re-stage it when the repository requires formatted commits.
 - Run slow commands so they do not block you, through the background facility the environment instructions name. Wait for the result instead of polling.
+- Never print the whole environment (`env`, `printenv`, `set -x`): the output lands in transcripts. Check only the named settings you need.
+- A task reported as cached or up to date did not run its tests. Say so, or rerun it with the tool's cache bypass.
 - For each check, record the command, exit code and, on failure, the relevant output lines.
 
 ## 4. Fix failures
