@@ -38,14 +38,13 @@ Exit codes
 Events
   - a required check failed (name and link)
   - all checks finished on the head (one summary line)
-  - a new comment, review, thread, or thread reply from a human other than the
-    PR author or the gh user (GitHub App bots are never reported)
+  - a new comment, review, thread, or thread reply from anyone other than the
+    PR author or the gh user: people, agents and bots alike
   - the base branch moved and the new commits touch files in this PR
   - merge state became BEHIND or DIRTY
   - the PR merged or closed
 
-Comment edits are never events. Comments, reviews and thread replies from bot
-accounts are skipped.
+Comment edits are never events.
 
 State lives in ~/.local/state/pr-wait/. A lock makes a second watcher for the
 same PR exit at once. A state file lets a restarted watcher report what arrived
@@ -95,14 +94,14 @@ query($owner: String!, $name: String!, $number: Int!) {
       url state headRefOid baseRefName mergeStateStatus
       author { login }
       baseRef { target { oid } }
-      comments(last: 100) { nodes { id url body author { login __typename } } }
+      comments(last: 100) { nodes { id url body author { login } } }
       reviews(last: 100) {
-        nodes { id url state body author { login __typename } }
+        nodes { id url state body author { login } }
       }
       reviewThreads(last: 100) {
         nodes {
           isResolved path line
-          comments(first: 100) { nodes { id url body author { login __typename } } }
+          comments(first: 100) { nodes { id url body author { login } } }
         }
       }
     }
@@ -151,9 +150,8 @@ def gh_lines(args: list[str]) -> list[str]:
     return [line for line in gh(args).stdout.splitlines() if line]
 
 
-def who(node: Json) -> tuple[str, bool]:
-    author = node.get("author") or {}
-    return author.get("login") or "ghost", author.get("__typename") == "Bot"
+def who(node: Json) -> str:
+    return (node.get("author") or {}).get("login") or "ghost"
 
 
 def plain(body: str) -> str:
@@ -378,7 +376,7 @@ class Watcher:
         checks = self.fetch_checks()
         head = pr["headRefOid"]
         short = head[:7]
-        mine = {who(pr)[0], pr["viewer"]}
+        mine = {who(pr), pr["viewer"]}
         comments = pr["comments"]["nodes"]
         reviews = pr["reviews"]["nodes"]
         threads = pr["reviewThreads"]["nodes"]
@@ -406,15 +404,15 @@ class Watcher:
         self.prev_snapshot = snapshot
         green = gate_done and stable and not fail_lines
 
-        # People and bots talking. Edits are never events.
+        # Anyone talking: people, agents, bots. Edits are never events.
         for comment in comments:
-            login, is_bot = who(comment)
-            if login in mine or is_bot:
+            login = who(comment)
+            if login in mine:
                 continue
             self.emit(f"c:{comment['id']}", f"comment from {login}: {snippet(comment['body'])} {comment['url']}")
         for review in reviews:
-            login, is_bot = who(review)
-            if login in mine or is_bot:
+            login = who(review)
+            if login in mine:
                 continue
             if review["state"] in ("APPROVED", "CHANGES_REQUESTED") or review["body"].strip():
                 state = review["state"].lower().replace("_", " ")
@@ -426,8 +424,8 @@ class Watcher:
                 unresolved.append(nodes[0]["url"])
             where = f"{thread['path']}:{thread['line']}" if thread["line"] else thread["path"]
             for index, comment in enumerate(nodes):
-                login, is_bot = who(comment)
-                if login in mine or is_bot:
+                login = who(comment)
+                if login in mine:
                     continue
                 kind = "new thread" if index == 0 else "thread reply"
                 self.emit(f"c:{comment['id']}", f"{kind} from {login} on {where}: {snippet(comment['body'])} {comment['url']}")
