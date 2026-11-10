@@ -30,7 +30,7 @@ Read the workspace and repository instructions (`AGENTS.md`, `CLAUDE.md` and the
 - the label and status vocabulary, and who may mark a ticket ready for an agent,
 - which writes need approval.
 
-For Linear, follow the `using-linear` skill for every write. Never invent labels, statuses or fields. Never mark tickets ready for an agent unless the instructions allow it.
+Follow the `using-tracker` skill for every tracker read and write. Never invent labels, statuses or fields. Never mark tickets ready for an agent unless the instructions allow it.
 
 Defaults when nothing says otherwise: local files next to the spec, `<spec-dir>/<spec-slug>/tickets/<NN>-<slug>.md`, the parent as `00-parent.md`, children numbered from `01` in dependency order, one ticket per file; the spec's language; every write after explicit approval.
 

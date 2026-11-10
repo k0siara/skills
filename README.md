@@ -53,7 +53,7 @@ flowchart TD
         reviewwatch["<b>review-pr-watch</b><br/>review, then watch until approved<br/>and re-check the author's fixes"]
     end
 
-    linear[("<b>using-linear</b><br/>tracker context and writes,<br/>any time")]
+    tracker[("<b>using-tracker</b><br/>tracker context and writes,<br/>any time")]
 
     start --> understand
     understand -- "enough is known" --> decide
@@ -61,7 +61,7 @@ flowchart TD
     small --> build
     build --> ship
     theirs --> others
-    linear -.- decide
+    tracker -.- decide
 ```
 
 Go top to bottom. Skip a stage when you already have its output: a small, clear task goes straight to `deliver-pr`. Inside **Build**, `deliver-pr` runs `verify-changes`, `review-change` and `pr` for you; run them by hand when you build without it.
@@ -83,6 +83,6 @@ Go top to bottom. Skip a stage when you already have its output: a small, clear 
 | 4 · Ship | [babysit-pr](./skills/babysit-pr/SKILL.md) | Your PR is open | Watches it until it merges, rebases on conflict also after approval, fixes routine CI failures itself, proposes fixes and replies to comments |
 | Review others | [review-pr](./skills/review-pr/SKILL.md) | A teammate asks for a review | Reviews in a detached worktree and publishes only the comments you approve |
 | | [review-pr-watch](./skills/review-pr-watch/SKILL.md) | You reviewed a PR and want to follow it until you approve | Re-checks the author's fixes and replies in code, drafts replies for your approval, and watches the PR in the background until it merges or closes |
-| Any time | [using-linear](./skills/using-linear/SKILL.md) | Anything about Linear issues, cycles or backlog | Derives team, project and parent from your current work and asks before every write |
+| Any time | [using-tracker](./skills/using-tracker/SKILL.md) | Anything about issues, sprints or backlog in any tracker (Linear, Jira, GitHub Issues) | Finds the project's tracker rules, derives project and parent from your current work and asks before every write |
 
 Each skill's `SKILL.md` has the full behavior, requirements and triggers.
