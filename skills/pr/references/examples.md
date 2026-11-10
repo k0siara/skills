@@ -31,7 +31,7 @@ The rationale and preserved boundary matter; the sequence of YAML edits does not
 > - Android emulator, 360 × 640 logical pixels: opened the keyboard, entered a long label and confirmed successfully; no overflow was reported.
 > - iOS was not exercised.
 
-This gives the reviewer a failure mode and observed coverage without turning one platform's smoke into a claim about all platforms.
+The failure mode and observed coverage are clear, without turning one platform's smoke into a claim about all platforms.
 
 ## Service contract and data migration
 
@@ -83,10 +83,4 @@ A code revert is not a data rollback. State the actual deployment boundary inste
 > ## Risks and rollout
 > Environments that set `retry.maxAttempts` must rename it before deployment; otherwise they fall back to the default of three attempts.
 
-The rejected alternative answers the obvious review question, the scope names what a reviewer might assume is fixed, and the rename names both keys.
-
-## Updating an existing description
-
-Replace stale claims rather than appending another dated update. If a final relevant edit followed the last test run, say that the current version has not been rechecked. Retain human-written requirements and approval references; do not silently replace a conflicting statement with an agent's assumption.
-
-Mandatory security, compliance or change-management fields remain mandatory. Reference the permitted internal record rather than copying customer data, secrets or an entire approval history into the PR.
+The rejected alternative, the scope and both rename keys answer the obvious review questions.

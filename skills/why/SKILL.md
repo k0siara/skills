@@ -1,6 +1,6 @@
 ---
 name: why
-description: "Use when the user asks what was decided, why something is the way it is, or how a feature, flow or rule is supposed to work, and the answer should come from the team's written record instead of guesses. Searches the issue tracker, long-form docs (PRDs, ERDs, design docs), pull requests and local specs in parallel, read-only, and returns a cited answer with confidence levels, conflicts between sources and the open questions with who is likely to know. Triggers: why, /why, why did we, what did we decide about, how is X supposed to work, find what we know about, is this documented."
+description: "Use when the user asks what was decided, why something is the way it is, or how a feature, flow or rule is supposed to work, and the answer should come from the team's written record instead of guesses. Searches tracker, docs, PRs and notes in parallel, read-only; returns a cited answer with confidence, conflicts and open questions with who is likely to know. Triggers: why, /why, why did we, what did we decide about, how is X supposed to work, find what we know about, is this documented."
 ---
 
 # Why
@@ -13,7 +13,7 @@ Read-only. Never write to the tracker, docs, pull requests or chat, even to leav
 
 1. Write the question in one sentence, plus the topic keywords and the names, IDs or links the user gave. If the user embeds a guess ("I assume it's because..."), keep it as one hypothesis to test, not the answer.
 2. Pin the scope before searching:
-   - **Area:** the projects, initiatives, epics and doc spaces the topic belongs to. Derive them from the user's current work: their active and recent tracker issues and projects, specs and notes in the workspace, and the conversation. The workspace instructions (`AGENTS.md`, `CLAUDE.md` and the files they point to) may name doc spaces, tracker rules and where notes live; follow them.
+   - **Area:** projects, epics and doc spaces of the topic. Derive them from the user's current work (active issues, workspace specs and notes, the conversation) and follow the workspace instructions (`AGENTS.md`, `CLAUDE.md`) on doc spaces, tracker rules and note locations.
    - **Time window:** default the last 12 months, wider when the topic is older.
 3. If the question is too vague to search (no topic, no referent), make the best guess from the conversation, state it in one line and go on. Ask only when two readings would send the search to different places.
 
@@ -21,19 +21,19 @@ Read-only. Never write to the tracker, docs, pull requests or chat, even to leav
 
 List the tools you can reach for each source kind:
 
-| Source | Typical tools | Best at |
-|---|---|---|
-| Issue tracker | Linear, Jira, GitHub Issues (CLI, MCP or connector) | The business reason, scope decisions, comments where things got settled |
-| Long-form docs | Confluence, Notion, Google Docs | PRDs, ERDs, design docs, rationale written before the code |
-| Pull requests and history | `gh`, `git log`, `git log -S`, review threads | Decisions made during review, what actually shipped |
-| Workspace notes | Specs, ADRs, meeting notes, prior research files in the workspace | Decisions already captured with the user |
-| Team chat | Slack, Teams (read access only) | Decisions that never reached a doc |
+| Source | Best at |
+|---|---|
+| Issue tracker | The business reason, scope decisions, comments where things got settled |
+| Long-form docs | PRDs, ERDs, design docs, rationale written before the code |
+| PRs and history (`gh`, `git log -S`, review threads) | Decisions made during review, what actually shipped |
+| Workspace notes (specs, ADRs, meeting notes, research) | Decisions already captured with the user |
+| Team chat (read-only) | Decisions that never reached a doc |
 
 A source kind with no reachable tool is a gap, not a skip: report it as "not searchable here". Skip a reachable source only when it provably cannot hold the answer, and say why.
 
 ## 3. Investigate in parallel
 
-Start one read-only investigator subagent per reachable source, all in one call when your harness allows, each owning exactly one source. Use your harness's subagent tool; pick a fast model if the harness lets you choose. Each investigator's prompt is the full text of [`references/investigator.md`](references/investigator.md) with its placeholders filled: the question, the scope, the source and the leads you already have.
+Start one read-only investigator subagent per reachable source, in parallel, each owning one source (fast model if selectable). Each investigator's prompt is the full text of [`references/investigator.md`](references/investigator.md) with its placeholders filled: the question, the scope, the source and the leads you already have.
 
 If subagents cannot reach a source (for example a connector only the main agent has), search that source yourself with the same rules.
 
@@ -52,7 +52,7 @@ Combine the reports yourself. For every claim:
 - **Conflicts:** when sources disagree, show both with citations and dates. Do not pick the tidier story.
 - **The user's hypothesis:** confirm, refute or mark it unresolved, with evidence. Do not agree because it was offered.
 
-Words like "because", "decided" and "requires" need a citation next to them. Hedge inferences ("likely", "suggests") and show what they rest on.
+Hedge inferences ("likely", "suggests") and show what they rest on.
 
 ## 5. Answer
 
