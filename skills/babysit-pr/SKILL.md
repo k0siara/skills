@@ -1,6 +1,6 @@
 ---
 name: babysit-pr
-description: "Watches a GitHub PR in the background until it is approved and notifies the user about new review comments (from people, agents or bots), CI failure, conflicts, approval and merge; rebases on conflict and applies routine, unambiguous fixes and reruns itself, asking the user only for ambiguous or behaviour-changing fixes and for anything it would publish; stops watching once the PR is approved, its CI is green and it has no conflicts; if the PR merges while watched, removes the agent's PR worktree. Ends with one status line `BABYSIT: <MERGED|APPROVED|CLOSED|BLOCKED> ...`. Use when the user asks to babysit, watch or monitor a PR, or wants to be notified about PR comments, approval or merge."
+description: "Watches a GitHub PR in the background until it merges or closes and notifies the user about new review comments (from people, agents or bots), CI failure, conflicts, approval and merge; rebases on conflict, also after approval, and applies routine, unambiguous fixes and reruns itself, asking the user only for ambiguous or behaviour-changing fixes and for anything it would publish; an approved PR stays watched so a later conflict is rebased without waiting for the user; if the PR merges while watched, removes the agent's PR worktree. Ends with one status line `BABYSIT: <MERGED|CLOSED|BLOCKED> ...`. Use when the user asks to babysit, watch or monitor a PR, or wants to be notified about PR comments, approval or merge."
 ---
 
 # Babysit PR
@@ -19,7 +19,7 @@ The user lists CI checks to ignore in the config file `~/.config/babysit-pr/conf
 { "ignoreChecks": { "*": [], "owner/name": ["^E2E:"] } }
 ```
 
-The watcher reads it itself. A caller may add more for this run; pass those as `--ignore-check <regex>`. An ignored check counts as absent everywhere: read the file at Start and leave matching checks out whenever you read CI with `gh pr checks` (**Assess**, **CI failure**). So an ignored check never wakes you, never goes to **CI failure** and never blocks **Approved**. No file and no caller regexes: no check is ignored. Never edit the file yourself.
+The watcher reads it itself. A caller may add more for this run; pass those as `--ignore-check <regex>`. An ignored check counts as absent everywhere: read the file at Start and leave matching checks out whenever you read CI with `gh pr checks` (**Assess**, **CI failure**). So an ignored check never wakes you, never goes to **CI failure** and never keeps a PR from counting as **Approved**. No file and no caller regexes: no check is ignored. Never edit the file yourself.
 
 ## Act or ask
 
@@ -61,14 +61,14 @@ Free-text input ("Other", custom input, note) always means "change this draft": 
 When watching ends, the last line of your final reply is exactly one status line, so a person or a script that started you can act on it:
 
 ```text
-BABYSIT: <MERGED|APPROVED|CLOSED|BLOCKED> <pr-url> <short reason>
+BABYSIT: <MERGED|CLOSED|BLOCKED> <pr-url> <short reason>
 ```
 
-`MERGED` after **Merged**, `APPROVED` after **Approved**, `CLOSED` when the PR closed without merging, `BLOCKED` when you stop and report without one of those (a check below failed, the watcher stopped, the user must decide). A turn that ends with the watcher still running has no status line.
+`MERGED` after **Merged**, `CLOSED` when the PR closed without merging, `BLOCKED` when you stop and report without one of those (a check below failed, the watcher stopped, the user must decide). Approval does not end watching, so it has no status of its own. A turn that ends with the watcher still running has no status line.
 
 ## Start
 
-1. Read **Ignored checks**. Run **Assess** only to see where it ends; act on nothing yet. Merged → notify `info`, then **Merged**. Closed → notify `warning` and stop with `BABYSIT: CLOSED`. **Assess** ends at **Approved** → notify `info` `PR #<n>: already approved, CI green, no conflicts, not watching`, then **Approved**. Anything else: go on.
+1. Read **Ignored checks**. Run **Assess** only to see where it ends; act on nothing yet. Merged → notify `info`, then **Merged**. Closed → notify `warning` and stop with `BABYSIT: CLOSED`. Anything else, including an already approved PR: go on.
 2. Find the local checkout of `headRefName` (`git worktree list`); if there is none, create one (**Worktree**). It must be on the PR head with a clean tree. Otherwise stop and report.
 3. Handle what already exists, because the watcher's first run records existing activity without reporting it: unanswered comments and unresolved threads → **Comments** (it ends with **Assess**); none → **Assess**. Act on its result: conflicts before CI, both before approval.
 4. Start the watcher (below) unless that already happened or watching ended, and end your turn. Do not post "still waiting".
@@ -90,7 +90,7 @@ Take the first rule that applies:
 4. `reviewDecision` neither `APPROVED` nor empty (empty: the repo requires no review), or any pending check → restart the watcher.
 5. You pushed in this pass → restart the watcher. The new head's checks may not be registered yet, so they cannot count as green; the watcher reports them (`checks finished on <sha>`).
 6. `mergeStateStatus` `UNKNOWN` or `mergeable` `UNKNOWN`: GitHub is still computing it, often right after a push or a base move. Read again up to 3 times, 10 s apart (the only wait outside the watcher). Still unknown → it is not success: notify `warning` and end with `BABYSIT: BLOCKED <pr-url> mergeability unknown`, so the caller can start babysitting again later.
-7. Otherwise → **Approved**. Another `mergeStateStatus` (`CLEAN`, `BEHIND`, `BLOCKED`, `UNSTABLE`, `HAS_HOOKS`, `DRAFT`) does not stop **Approved**; name it in the final reply when it is not `CLEAN`. Do not rebase only because the branch is `BEHIND`.
+7. Otherwise → **Approved**. Another `mergeStateStatus` (`CLEAN`, `BEHIND`, `BLOCKED`, `UNSTABLE`, `HAS_HOOKS`, `DRAFT`) does not stop **Approved**; name it in the notification when it is not `CLEAN`. Do not rebase only because the branch is `BEHIND`.
 
 After **Conflict**, **CI failure** or **Comments** changed something, run **Assess** again: a push makes a new head, may dismiss the approval and starts new CI.
 
@@ -190,7 +190,12 @@ Rebase the PR branch onto its base in the PR's worktree. Do not message reviewer
 
 ## Approved
 
-Only when **Assess** says so: the PR is approved, no check failed or is pending, its mergeability is known and it has no conflicts. Stop watching this PR: do not restart the watcher (it has already exited) and stop any other watcher of this PR you started. Keep the worktree: only **Merged** removes it, and after approval it no longer runs, so the user cleans up. Final reply: who approved, CI green, no conflicts (and the merge state when it is not `CLEAN`), what was pushed, rerun or posted in this run, watching stopped, worktree path kept (or none created), then `BABYSIT: APPROVED`. Do not merge.
+Only when **Assess** says so: the PR is approved, no check failed or is pending, its mergeability is known and it has no conflicts. Approval does not end babysitting: the base keeps moving until someone merges, and a conflict that appears now must be rebased without waiting for the user.
+
+1. Once per head: notify `info` `PR #<n>: approved by <who>, CI green, no conflicts, still watching until merge` (add the merge state when it is not `CLEAN`, and what was pushed, rerun or posted in this run).
+2. Restart the watcher and end your turn. Do not merge and do not post anything.
+3. On every later wake, **On wake** and **Assess** apply as before. A conflict goes straight to **Conflict** like any other: rebase on your own when **Act or ask** allows it, never stop to ask only because the PR is approved. The push may dismiss the approval when the repo dismisses stale reviews; say so in the `info` notification. New comments and failed checks on an approved PR go to **Comments** and **CI failure** as usual.
+4. Watching ends only at **Merged**, when the PR closes, or with `BABYSIT: BLOCKED` (a step failed, the watcher stopped, the user must decide, or the user asked to stop).
 
 ## Merged
 
@@ -206,4 +211,4 @@ Do not delete the branch and do not change the issue tracker.
 
 ## Never
 
-Merge the PR, use plain `--force`, force-push outside **Conflict**, end at **Approved** while the PR conflicts or its mergeability is unknown, publish or resolve anything the user did not approve, take an action **Act or ask** or the project rules say to ask about without asking, run two watchers on one PR, or remove a worktree outside **Merged**.
+Merge the PR, use plain `--force`, force-push outside **Conflict**, stop watching because the PR is approved, leave a conflict on an approved PR for the user when **Act or ask** lets you rebase, publish or resolve anything the user did not approve, take an action **Act or ask** or the project rules say to ask about without asking, run two watchers on one PR, or remove a worktree outside **Merged**.
