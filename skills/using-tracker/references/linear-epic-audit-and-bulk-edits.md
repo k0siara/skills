@@ -28,6 +28,16 @@ GRAPHQL
 
 Delegate step 3 to a subagent when it means reading many files. Give it the plan's principles and the list of allowed exceptions, so it can classify each finding as allowed, known pending, or an unplanned gap.
 
+## Publishing a set of new issues (with relations and plan edits)
+
+Use when an approved breakdown creates many issues at once (a stage parent, children, blocking edges, notes in existing issues).
+
+1. Resolve UUIDs once: team, project (`slugId` → `id`), active cycle (`team{activeCycle{id}}`), state, viewer. Create each issue with one `issueCreate(input:{teamId, projectId, cycleId, stateId, assigneeId, parentId, title, description})` through `linear api --variables-json`; the CLI flags cannot set every field in one call.
+2. Keep the approved drafts as one file per issue plus a manifest (key, title, parent key, blocked-by keys) next to the spec. Reference not-yet-created issues with placeholders such as `<<20.1>>`.
+3. Run a script that writes created issues to a `published.json` state file after every create and skips keys already in it, so a rerun after a failure never duplicates issues. Create parents first, then blockers before the issues they block.
+4. Second pass: replace every placeholder with real identifiers (including sub-task lists in the parents' descriptions) and assert no `<<` is left; create the `blocks` relations (`issueRelationCreate(input:{issueId: blocker, relatedIssueId: blocked, type: blocks})`), logging each edge so reruns skip it; then apply the anchored edits to existing issues (next section).
+5. Read back in one script: per new issue state, cycle, project, assignee, parent, blocked-by, blocks, children and a placeholder check; per edited issue, which new identifiers its description now references. Report from that output only.
+
 ## Multi-field mutation in one call
 
 Use `linear api` with variables when one approved change touches several fields or issues (state, cycle, description, comment). Variables avoid escaping problems with markdown bodies.

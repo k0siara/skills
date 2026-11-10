@@ -49,7 +49,7 @@ Unless the rules file says otherwise:
 
 ## 5. Audits and bulk edits
 
-When asked what is really done in an epic or plan, or when one approved change touches several fields or issues: read the parent and all its comments, fetch the whole tree once into a scratch file and print one line per issue, cross-check states against the default branch and PR states, report the drift (In Review with a merged PR, closed-unmerged PRs, claimed work with no code, code no issue covers), then propose the fixes. For Linear, follow `references/linear-epic-audit-and-bulk-edits.md`.
+When asked what is really done in an epic or plan, or when one approved change touches several fields or issues: read the parent and all its comments, fetch the whole tree once into a scratch file and print one line per issue, cross-check states against the default branch and PR states, report the drift (In Review with a merged PR, closed-unmerged PRs, claimed work with no code, code no issue covers), then propose the fixes. For Linear, including publishing many new issues with relations at once, follow `references/linear-epic-audit-and-bulk-edits.md`.
 
 ## Red flags
 
