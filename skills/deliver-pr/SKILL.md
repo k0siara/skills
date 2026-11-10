@@ -118,6 +118,7 @@ Checks `verify-changes` deferred to CI are not gaps: the PR's verification secti
 4. Fix every confirmed finding and every gap in its rules table, regardless of priority, with these exceptions:
    - outside the task's scope: do not fix; list it in the final report;
    - `missing_justification`: add the justification to `pr-body.md`; without one, simplify the code to the existing pattern;
+   - `design_suggestion`: optional; apply it only when it stays within the task's scope and its stated trade-off costs nothing the task needs, otherwise list it in the final report;
    - mismatch between the draft PR and the task: fix `pr-body.md`; an error on the task's side becomes a tracker proposal in step 7;
    - a fix that needs a breaking public-API change or contradicts the task or a recorded decision: stop and ask.
 5. Commit the fixes locally. Run step 5 again in a fresh stage agent, scoped to the fixes: pass the previous `verify.md` as its previous report, so it reruns only the checks the fixes can affect. Before the first push you may fold them into existing commits; after it, add new commits. Review the diff of the fixes yourself. Do not rerun the reviewers. Then run the `pr` skill again to refresh `pr-body.md` from the final diff and the latest verification and review results.

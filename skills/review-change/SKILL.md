@@ -67,9 +67,9 @@ When in doubt, the change is risky. Anything not small and safe is risky.
      context: "<common input>",
      tasks: [
        { name: "ReviewTechnical", agent: "review", task: "<full text of references/technical.md>",
-         solutionSpace: "Technical correctness, edge cases, error paths, test quality, reliability, security, performance, logging and monitoring; findings open" },
+         solutionSpace: "Technical correctness, predicate and validator guarantees, edge cases, error paths, test quality, reliability, security, performance, logging and monitoring; findings open" },
        { name: "ReviewArchitecture", agent: "review", task: "<full text of references/architecture.md>",
-         solutionSpace: "Architecture, project rules, boundaries, patterns, design principles incl. KISS, error architecture, contracts, pattern-change justification; findings open" }
+         solutionSpace: "Architecture, project rules, boundaries, patterns, design principles incl. KISS and the smallest complete solution, method semantics, error architecture, contracts, pattern-change justification; findings open" }
      ]
    })
    ```
@@ -85,7 +85,7 @@ Your coverage areas: `business context`, `rules → implementation`, `rules → 
 
 ## 4. Verify the findings
 
-1. Confirm each reviewer finding in the code and sources, or reject it. For `documented` and `convention`, open the document or the reference files; for `principle`, confirm the stated effect in the code; for `missing_justification`, confirm the justification is absent from the sources and the docs; for `test_gap`, confirm the missing test or weak assertion; for `observability_gap`, confirm the project uses the named tool. Reject behavior the business context or the docs explicitly allow. Correct wrong priorities or lines. Reject what you cannot confirm.
+1. Confirm each reviewer finding in the code and sources, or reject it. For `documented` and `convention`, open the document or the reference files; for `principle`, confirm the stated effect in the code; for `missing_justification`, confirm the justification is absent from the sources and the docs; for `test_gap`, confirm the missing test or weak assertion; for `observability_gap`, confirm the project uses the named tool; for `design_suggestion`, confirm the stated cost in the code and that the alternative still meets every rule in `business-context.md` and no binding decision or constraint requires the current code. Reject behavior the business context or the docs explicitly allow. Correct wrong priorities or lines. Reject what you cannot confirm.
 2. Match each of your observations against the findings. Merge the covered ones. Send each uncovered one to the right reviewer for a judgment and wait; if that reviewer is gone, judge it yourself with the same criteria. Every observation ends as a finding or a rejected finding with the reason.
 3. Check each `context_challenge` in the sources. Fix accepted ones in `business-context.md` and recompute the affected table rows; list rejected ones with the reason.
 4. Merge findings with the same root cause into one with the higher priority (lower number) and all sources. Different problems on the same line stay separate.
@@ -97,16 +97,17 @@ Priorities: P0 blocks release, P1 fix in the next cycle, P2 fix eventually, P3 n
 
 Verdict:
 
-- `PASS`: no confirmed defect, no unmet rule, every area covered.
-- `ISSUES`: at least one confirmed finding or table gap.
+- `PASS`: no confirmed finding other than `design_suggestion`, no unmet rule, every area covered.
+- `ISSUES`: at least one confirmed finding other than `design_suggestion`, or a table gap.
 - `INCONCLUSIVE`: a required reviewer was unavailable or an area stayed unverified.
 
 Write the report to `review-change.md` in the artifacts directory, starting with the reviewed `HEAD` SHA, the verdict and one classification line, and return it. The classification line says whether the change was small and safe or risky, and why: the changed-line count after exclusions and the risk areas hit, or "none"; or that the workspace instructions or the caller set the reviewers. It shows why there was one reviewer or two. Example: `Classification: small and safe (40 lines, risk areas: none), 1 reviewer`.
 
-1. **Findings** in three groups. Each has priority, location (`file:line`, `task <ID>` or `PR description`), description, evidence, suggested fix, source reviewer (architecture findings also their `reference`), and a handling class for the author: `fix`, `out of scope`, `justify or simplify` (for `missing_justification`), `fix PR description` or `tracker correction` (for task vs PR mismatches), or `ask user` (needs a breaking change or contradicts the task).
+1. **Findings** in four groups. Each has priority, location (`file:line`, `task <ID>` or `PR description`), description, evidence, suggested fix, source reviewer (architecture findings also their `reference`), and a handling class for the author: `fix`, `out of scope`, `justify or simplify` (for `missing_justification`), `fix PR description` or `tracker correction` (for task vs PR mismatches), `author's call` (for `design_suggestion`), or `ask user` (needs a breaking change or contradicts the task).
    - Confirmed problems: `defect`, `observability_gap`, rules not met.
    - Gaps in requirements, tests and justification: `test_gap`, table gaps, `missing_justification`, ambiguities, task vs PR mismatches.
-   - Architecture suggestions: `deviation`.
+   - Architecture deviations: `deviation`.
+   - Design suggestions: `design_suggestion`, from either reviewer. They do not block merge and do not change the verdict.
 2. **Traceability table.**
 3. **Tests:** read, run (command and result), confirmed by CI, not run.
 4. **Coverage:** `area | reviewer | result | evidence or reason`, where the result is `checked`, `issue found`, `not applicable` or `unverified`. List unverified parts under the table as verification limits.
