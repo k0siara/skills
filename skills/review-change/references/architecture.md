@@ -40,14 +40,14 @@ A pattern change is a new way of solving a recurring problem in this codebase, o
 
 <method-semantics>
 For each significant method the patch adds or changes, internal ones included (it decides, validates, converts, persists, or other code relies on its result), compare its name and doc comment with what the body actually guarantees: for which inputs the result holds, what it assumes was checked before (preconditions), and what it changes besides its result (side effects: state, I/O, mutation of arguments). Trivial accessors and delegations need no check.
-- The name or doc comment promises more than the body guarantees, or hides a precondition or side effect a caller must know: `deviation` with `principle` (explicit contracts); `reference` names the guarantee a caller would assume and the callers that currently compensate for it, if any.
+- The name or doc comment promises more than the body guarantees, or hides a precondition or side effect a caller must know: `deviation` with `principle` (explicit contracts); `reference` names the guarantee a caller would assume and the callers that currently compensate for it, if any. It is P3 while every caller compensates, P2 when a caller relies on the missing guarantee.
 - The name is vague but not false: at most a `design_suggestion`.
 </method-semantics>
 
 <minimal-solution>
 For each significant new abstraction the patch adds (type, interface, layer, intermediate model, generic mechanism, configuration), sketch the smallest complete solution that meets the same requirements: what could be removed, which requirements (business-context IDs, binding decisions and constraints) stay met, and which existing code already enforces part of them (e.g. a parser, schema or validator). Then:
 - Removal meets every requirement and loses nothing: `deviation` with `principle` (KISS); `reference` names what duplicates what.
-- Removal meets the requirements but gives something up (an extension point, a clearer error, testability): `design_suggestion` with that trade-off.
+- Removal meets the requirements and removes clearly more than it gives up (an extension point, a clearer error, testability): `design_suggestion` with that trade-off.
 - The abstraction is needed, or a binding decision or constraint requires it: no finding; record it in `design_principles` coverage.
 Finding no simplification is a valid result; do not force one.
 </minimal-solution>
@@ -82,7 +82,7 @@ Report a `deviation` only with a source:
 - `principle`: a principle named in <scope>; `reference` names it and the concrete consequence in this code: what becomes hard to test, which future change forces edits elsewhere, which type leaks across which boundary, which consumer breaks, which layer or abstraction adds cost without a need. For a difference from a single precedent, `reference` also gives the precedent's path and what the patch adds beyond it (extra code, configuration or indirection the precedent does without).
 A `missing_justification` finding uses `convention` (paths of the replaced pattern's peers) or `documented` (the rule the change departs from) as `reference`.
 
-Report a `design_suggestion` for a well-founded change that is not a defect, convention breach or missing justification, only with all of: a patch-anchored location; the concrete cost of the current code (code, indirection, duplication or ambiguity, named in the code); an alternative the author can apply; and what the alternative gives up or does not solve. Its `reference_kind` is `principle`. It is always P3, does not make the change `incorrect` and does not block merge.
+Report a `design_suggestion` for a well-founded change that is not a defect, convention breach or missing justification, only with all of: a patch-anchored location; the concrete cost of the current code (code, indirection, duplication or ambiguity, named in the code); an alternative the author can apply; and what the alternative gives up or does not solve. The alternative must remove clearly more cost than it gives up; when cost and gain are comparable, or it only moves code elsewhere, report nothing. Its `reference_kind` is `principle`. It is always P3, does not make the change `incorrect` and does not block merge.
 
 Precedence:
 - A documented rule beats a convention. Files that contradict the docs or are marked deprecated or legacy are not a convention, however many there are.
@@ -115,7 +115,7 @@ An area with findings or checks that still has an unverified part keeps `issue_f
 |P0|Broken module boundary that fails the build or creates a dependency cycle|Domain module imports the data module that depends on it|
 |P1|Documented MUST rule broken, dependency direction inverted, or public contract broken for existing consumers|Presenter calls the repository directly while docs require a use case; response DTO field renamed while released clients still read it|
 |P2|Established convention, recommended documented rule or principle not followed; new or changed pattern without justification|Mapper as a free function while peers are injected mapper classes; use case constructs its repository instead of receiving it; data layer exception reaches the UI unmapped; interface and factory added for a single call site|
-|P3|Naming, placement or readability only, behavior and structure unchanged; every `design_suggestion`|File named `*Helper` where peers use `*Mapper`; magic number where peers use a named constant|
+|P3|Naming, placement or readability only, behavior and structure unchanged; a misleading contract every caller compensates for; every `design_suggestion`|File named `*Helper` where peers use `*Mapper`; magic number where peers use a named constant|
 </priority>
 
 <output>

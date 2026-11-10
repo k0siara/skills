@@ -73,7 +73,7 @@ Report a `defect`, `test_gap` or `observability_gap` only when all hold:
 - No unstated assumptions about the codebase or author intent.
 - Proportionate rigor: the fix demands no rigor absent elsewhere in the codebase.
 Sensitive data leaking into logs or crash reports is a `defect` (security), not an `observability_gap`.
-Report a `design_suggestion` for a well-founded change that is not a defect, test gap or observability gap, only with all of: a patch-anchored location; the concrete cost of the current code; an alternative the author can apply; and what the alternative gives up or does not solve. It is always P3 and does not block merge.
+Report a `design_suggestion` for a well-founded change that is not a defect, test gap or observability gap, only with all of: a patch-anchored location; the concrete cost of the current code; an alternative the author can apply; and what the alternative gives up or does not solve. The alternative must remove clearly more cost than it gives up; when cost and gain are comparable, or it only moves code elsewhere, report nothing. It is always P3 and does not block merge.
 </criteria>
 
 <coverage>
