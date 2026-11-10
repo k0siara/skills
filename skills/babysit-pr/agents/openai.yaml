@@ -1,3 +1,3 @@
 interface:
   display_name: "Babysit PR"
-  short_description: "Watch a GitHub PR until approval, propose fixes for review comments and failed CI, rebase on conflict"
+  short_description: "Watch a GitHub PR until approved with green CI and no conflicts; rebase on conflict, fix routine CI failures, ask before the rest"

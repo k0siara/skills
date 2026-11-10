@@ -37,11 +37,12 @@ Exit codes
 
 Events
   - a required check failed (name and link)
-  - all checks finished on the head (one summary line)
+  - all checks finished on the head (one summary line, again after a rerun)
   - a new comment, review, thread, or thread reply from anyone other than the
     PR author or the gh user: people, agents and bots alike
   - the base branch moved and the new commits touch files in this PR
-  - merge state became BEHIND or DIRTY
+  - merge state became BEHIND, or is DIRTY on a head and base not reported yet
+    (UNKNOWN, still being computed by GitHub, is never an event)
   - the PR merged or closed
 
 Comment edits are never events.
@@ -56,6 +57,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 import html
 import json
 import os
@@ -446,10 +448,14 @@ class Watcher:
         merge_state = pr["mergeStateStatus"]
         dirty_line = f"merge state is DIRTY: the branch conflicts with {base}, rebase it"
         behind_line = f"merge state is BEHIND: update the branch from {base} before merging"
+        # UNKNOWN means GitHub is still computing mergeability: wait for a real value.
+        # DIRTY is reported once per head and base, so a conflict that survives a
+        # rebase or comes back after a base move wakes the agent again.
         if merge_state != "UNKNOWN":
-            if merge_state in ("BEHIND", "DIRTY") and self.state["merge_state"] != merge_state:
-                line = dirty_line if merge_state == "DIRTY" else behind_line
-                self.emit(f"merge:{merge_state}:{head}:{base_oid}", line)
+            if merge_state == "DIRTY":
+                self.emit(f"merge:DIRTY:{head}:{base_oid}", dirty_line)
+            elif merge_state == "BEHIND" and self.state["merge_state"] != merge_state:
+                self.emit(f"merge:BEHIND:{head}:{base_oid}", behind_line)
             self.state["merge_state"] = merge_state
 
         # One summary line per head once all checks finish.
@@ -468,7 +474,10 @@ class Watcher:
             f"merge state {merge_state}",
         ]
         summary = "; ".join(p for p in parts if p)
-        checks_key = f"checks:{head}"
+        # A rerun gives the rerun jobs new links, so a finished rerun on the same
+        # head is a new event.
+        runs = hashlib.sha1("\n".join(sorted(f"{n}|{c['link']}" for n, c in checks.items())).encode()).hexdigest()[:12]
+        checks_key = f"checks:{head}:{runs}"
 
         # Decide whether to stop. A green or ready line carries the same summary
         # as the checks line, so it marks that event as reported.
