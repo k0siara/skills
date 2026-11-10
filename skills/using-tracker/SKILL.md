@@ -1,6 +1,6 @@
 ---
 name: using-tracker
-description: Use when the user mentions issues, tickets, tasks, epics, current work, sprint or cycle, backlog, creating or updating issues, or anything about task tracking and planning in any tracker (Linear, Jira, GitHub Issues, local files). Invoke BEFORE asking the user any question about tracker context. Triggers: using-tracker, /using-tracker, create an issue, update the ticket, what am I working on.
+description: "Use when the user mentions issues, tickets, tasks, epics, current work, sprint or cycle, backlog, creating or updating issues, or anything about task tracking and planning in any tracker (Linear, Jira, GitHub Issues, local files). Invoke BEFORE asking the user any question about tracker context. Triggers: using-tracker, /using-tracker, create an issue, update the ticket, what am I working on."
 ---
 
 # Using the task tracker
