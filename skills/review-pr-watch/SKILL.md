@@ -34,27 +34,9 @@ When the skill stops, the last line of the final message is:
 
 ## State
 
-File: `~/.local/state/review-pr-watch/<owner>__<repo>__<N>.json`. Written after the first review is recognized and at the end of every round. Shape:
+File: `~/.local/state/review-pr-watch/<owner>__<repo>__<N>.json`. Written after the first review is recognized and at the end of every round. Fields: `repo`, `pr`, `viewer`, `review_ids` (your submitted reviews, not `PENDING`), `remark_ids` (node ids of your thread root comments and of your non-empty review bodies), `head` (head SHA the last round checked), `checked_at` (UTC time taken before the round's first GitHub read; author activity created after it is new), `rounds`.
 
-```json
-{
-  "repo": "owner/name",
-  "pr": 123,
-  "viewer": "your-login",
-  "review_ids": ["PRR_..."],
-  "remark_ids": ["PRRC_...", "PRR_..."],
-  "head": "<head SHA the last round checked>",
-  "checked_at": "2026-01-01T12:00:00Z",
-  "rounds": 0
-}
-```
-
-- `review_ids`: your submitted reviews (not `PENDING`).
-- `remark_ids`: node ids of your thread root comments and of your review bodies that contain remarks.
-- `checked_at`: UTC time taken before the round's first GitHub read. Author activity created after it is new.
-- Recognize your remarks by your login and these ids, never by a text prefix.
-
-Build it from GitHub, never from the text you wrote: your submitted reviews (`gh api graphql`, `reviews` with `author`, `state`, `id`, `body`, `commit.oid`), the threads whose first comment is yours (`reviewThreads`, paginated), and the review bodies that are not empty. The `review-pr` skill writes no state.
+Build it from GitHub (paginated), never from the text you wrote. The `review-pr` skill writes no state.
 
 ## Start
 
@@ -74,31 +56,23 @@ Command, from this skill's directory: `scripts/review-wait <pr-url> [--interval 
 
 - OMP: `bash` with `async: true`, `timeout: 0`. Stop it with `proc://<job-id>/kill`.
 - Other harnesses: their background facility, with the same command.
-- Exit 2 with `already watches`: another watcher runs for this PR. Do not start a second one.
+- Exit 2 with `already watches`: another watcher runs for this PR.
 
-The watcher keeps its own state in `~/.local/state/review-wait/`, with no age limit. A restarted watcher reports what arrived after its last report. Start it after every review publication and after every round that does not stop.
+Start it after every review publication and after every round that does not stop.
 
-The watcher prints one line per event, with a `#<N> ` prefix:
-
-| Line (after `#<N> `) | Meaning | Action |
-|---|---|---|
-| `approved: <url>` | You approved. | `REVIEW-WATCH: APPROVED`, stop. |
-| `merged: <url>` | Merged. | `REVIEW-WATCH: MERGED`, stop. |
-| `closed without merging: <url>` | Closed. | `REVIEW-WATCH: CLOSED`, stop. |
-| `review requested again: <url>` | Author asked for a new review. | Run the round. |
-| `new commits on <sha7>` | Author pushed (after the quiet window). | Run the round. |
-| `author comment`, `author new thread`, `author thread reply`, `author review (...)` | Author replied (after the quiet window). | Run the round. |
-| `comment from`, `new thread from`, `thread reply from`, `review (...) from` (no `author` prefix) | Someone else wrote. | Tell the user the line. Restart the watcher. Do not act without asking. |
-| `review-wait stopped:` | Watcher gave up (GitHub unreachable or a fatal error). | `REVIEW-WATCH: BLOCKED` with the reason, stop. |
-| anything else | | Restart the watcher silently. |
+Events (one line each, prefix `#<N> `):
+- `approved:` / `merged:` / `closed without merging:` → `REVIEW-WATCH: APPROVED|MERGED|CLOSED`, stop.
+- `review requested again:`, `new commits on`, any line starting with `author ` → run the round.
+- `comment from`, `new thread from`, `thread reply from`, `review (...) from` (no `author ` prefix) → tell the user the line, restart the watcher, do not act without asking.
+- `review-wait stopped:` → `REVIEW-WATCH: BLOCKED` with the reason, stop. Anything else → restart the watcher silently.
 
 ## Follow-up round
 
-Re-checks the author's response to your earlier remarks. You do not redo the review and do not open new threads.
+Re-checks the author's response to your earlier remarks. You do not redo the review.
 
 ### Step 1: PR state
 
-1. Read the PR number, author, state, head SHA, task ID from title or branch, and CI checks on the head SHA (name, status, conclusion, job link). `MERGED` or `CLOSED`: report and end. `APPROVED` by you: end with `APPROVED`.
+1. Read the PR number, author, state, head SHA, task ID from title or branch, and CI checks on the head SHA (name, status, conclusion, job link). Stop states as in Start 1.
 2. Read your remarks, paginating every list to its end:
    - inline threads whose ids are in `remark_ids` (`reviewThreads`: path, line, `isResolved`, `isOutdated`, each comment with `databaseId`, author, `createdAt`, body);
    - review bodies whose ids are in `remark_ids`, split into separate remarks (one per numbered or bulleted item).
@@ -106,8 +80,6 @@ Re-checks the author's response to your earlier remarks. You do not redo the rev
 3. Take the read time before these reads. It becomes `checked_at` in Step 6.
 4. Base SHA: the stored `head`. If it is no longer in the repo (force-push), use the `commit.oid` of your latest review and note that.
 5. Worktree: the location from the workspace rules, default `<main-checkout>/.work/review/pr-<N>/worktree`, inside `<main-checkout>/.work/` (`<main-checkout>` is the repository's main working tree; add `.work/` to `$(git rev-parse --git-common-dir)/info/exclude` if it is not there). `git fetch origin pull/<N>/head`, then `git worktree add --detach <path> <head SHA>`. Reuse a worktree already at the head SHA. Local changes or a `HEAD` other than the head SHA: blocker. Fetch the base SHA too and write `git diff <base>..<head>` to `followup.diff` in the artifacts directory (default `<main-checkout>/.work/review/pr-<N>/`, next to the worktree). If the base is missing, diff against the full PR diff and say so.
-
-If the watcher woke for `review requested again` or author activity, run the round. If you came from Start step 4 and nothing changed (same head, no author activity after `checked_at`), skip the round and go on to Watcher.
 
 ### Step 2: Judge each remark
 
@@ -121,7 +93,7 @@ Resolving a thread does not change the verdict. For an outdated thread, judge th
 
 ### Step 3: Regressions and CI
 
-Review `followup.diff` for problems the changes introduced: regressions, deleted or weakened tests, new failing checks. Report them. Never publish them as new threads. List failing checks.
+Review `followup.diff` for problems the changes introduced: regressions, deleted or weakened tests, new failing checks. Report them. List failing checks.
 
 ### Step 4: Report and decide
 
@@ -132,7 +104,7 @@ Report: a table `# | remark (link) | status | evidence | author's answer (short)
 
 ### Step 5: Publish
 
-Only the exact text the user approved, and only after an explicit yes (or the explicit caller instruction described in Notify and ask).
+Only the approved text, after an explicit yes.
 
 - Thread reply: `gh api repos/<owner>/<repo>/pulls/<N>/comments/<databaseId of the thread's first comment>/replies -f body=<text>`.
 - Remark from a review body: one general PR comment (`gh pr comment <N> --repo <owner>/<repo> --body-file <file>`) quoting the remark it answers.

@@ -10,7 +10,7 @@ Help the reviewer understand the change, verify its claims and decide whether it
 ## Establish the facts
 
 1. Follow the repository's contribution rules, required PR template, title convention and language. Otherwise use the user's language and a concise, outcome-oriented title.
-2. Identify the source branch, intended target branch and full diff between them. Do not assume the target is `main` or describe only the latest commit. Read the relevant code, linked requirements and existing PR description to understand intent and important boundaries.
+2. Identify the source branch, intended target branch and full diff between them. Do not assume the target is `main` or describe only the latest commit. Read the relevant code, linked requirements and existing PR description to understand intent and important boundaries; reuse what the caller already passed instead of re-reading it, but always take the current diff.
 3. Collect available verification results for the version being described: checks, CI, runtime observations and review artifacts. Distinguish observed results from expectations and proposed checks. Do not rerun broad suites just to populate the description; follow any required repository checks.
 4. For dependent changes, inspect the companion PR or contract when accessible. If it is unavailable, state what remains unverified rather than claiming compatibility.
 
@@ -20,7 +20,7 @@ If intent or the target branch remains ambiguous after inspecting the available 
 
 Name the actual behavioral outcome or concrete maintenance change. Preserve required ticket references. Avoid generic titles such as "fix issues" and unsupported claims such as "production ready".
 
-Start the body with one or two sentences explaining the problem and the resulting change. Link the issue rather than repeating its specification. Add the sections below only when useful; the headings may be translated or mapped to the required repository template.
+Start the body with one or two sentences explaining the problem and the resulting change. Link the issue rather than repeating its specification. Add the sections below only when useful.
 
 ### Change
 
@@ -57,13 +57,12 @@ Put a merge blocker or unusual target branch near the top. Keep deployment prere
 ## Keep only review value
 
 - A trivial change may need only a paragraph and a verification line. Aim for roughly 100–250 words for an ordinary PR, not a hard limit. Security, data integrity and rollout constraints take precedence over brevity. When the repository squash-merges with the PR body as the commit message, keep the body readable as that commit message, roughly 40 lines at most.
-- Use a table, diagram or before/after comparison only if it explains the change better than prose. Do not repeat the same information in several formats. Screenshots are optional unless required by the project.
-- Keep UI/platform, service/API, data migration and infrastructure details only when the diff makes them relevant. Do not impose one stack's checklist on every PR.
+- Use a table, diagram, before/after or screenshot only when it explains better than prose, and say each thing once. Include stack-specific details (UI, API, migration, infra) only when the diff makes them relevant.
 - Remove exhaustive file lists, chronological updates, superseded results, unrelated future work, agent signatures and session links. Use artifacts accessible to the intended reviewers, not local filesystem paths.
 - Never reproduce secrets, credentials, customer records or sensitive payloads. Use synthetic or redacted examples. Keep confidential identifiers, internal links and artifacts within the audience and publication rules permitted by the repository.
 - Preserve required template fields even when they are not applicable; explain briefly rather than fabricating an answer. Do not create empty optional sections.
 
-Before publishing, check every claim against its source and remove sentences that do not help someone understand, review, verify or deploy this change. Read [examples](references/examples.md) when choosing the level of detail.
+Before publishing, check every claim against its source. Read [examples](references/examples.md) when choosing the level of detail.
 
 ## Publish only within the request
 

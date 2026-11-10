@@ -1,6 +1,6 @@
 ---
 name: review-change
-description: "Use to get an independent review of a change against its task, such as a local branch before opening a PR: business context from the task source, rule-to-implementation-and-test traceability, technical and architecture review by reviewers who did not write the code, verified findings and a PASS, ISSUES or INCONCLUSIVE verdict. Also the review core that `review-pr` runs on someone else's PR. Read-only: it never edits, commits, pushes or publishes; the author applies fixes. Triggers: review-change, /review-change, review my branch before the PR, pre-PR review, independent review of this change."
+description: "Use to get an independent, read-only review of a change against its task (e.g. a branch before its PR): business context first, rule-to-implementation-and-test traceability, technical and architecture reviewers, verified findings, PASS, ISSUES or INCONCLUSIVE. Review core of `review-pr`. Triggers: review-change, /review-change, review my branch before the PR, pre-PR review, independent review of this change."
 ---
 
 # Review change
@@ -41,44 +41,30 @@ The reviewers read this file, check its quotes and may dispute your interpretati
 
 ## 3. Review
 
-**Project knowledge** (for you and every reviewer): in the worktree, `AGENTS.md` and `CLAUDE.md` at the repository root and in each directory on the path of a changed file, plus the documents, checklists and architecture decisions they point to for those file types. Conditional sections about any stage of a change (planning, implementation, hand-off, review) apply to the review too. Do not look for documents beyond these references. Read this knowledge before starting the reviewers; step 4 needs it.
+**Project knowledge** (for you and every reviewer): in the worktree, `AGENTS.md` and `CLAUDE.md` at the repository root and in each directory on the path of a changed file, plus the documents, checklists and architecture decisions they point to for those file types. Conditional sections about any stage of a change (planning, implementation, hand-off, review) apply to the review too. Do not look for documents beyond these references. Read it while the reviewers work; step 4 needs it.
 
 **Common reviewer input:** the project-knowledge rule above, verbatim; the worktree path; the `pr.diff` path; the `business-context.md` path; the changed files with summaries; areas needing attention. Never pass the earlier remarks or one reviewer's results to the other. Reviewers only read and never touch Git or GitHub.
 
 **Classify the change, before starting any reviewer.** A change is *small and safe* when both hold:
 
-- It has at most 200 changed lines (added + removed) in `pr.diff`, not counting lockfiles (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Podfile.lock`, `pubspec.lock`, `Gemfile.lock`, `poetry.lock`, `Cargo.lock`, `go.sum` and the like), generated files (marked as generated or in build/dist directories) and binary files. `git diff --numstat <base>...HEAD` gives the counts per file; binary files show `-`.
+- It has at most 200 changed lines (added + removed) in `pr.diff`, not counting lockfiles, generated files (marked as generated or in build/dist directories) and binary files. `git diff --numstat <base>...HEAD` gives the counts per file; binary files show `-`.
 - It touches no risk area, judged by paths and diff content: public API and contracts (`*Request`/`*Response`, endpoints, schemas, events), migrations and database schema, authorization and authentication, secrets and keys, deployment and CI configuration (`.github/workflows`, deploy files, infrastructure), permissions and personal data. A risk area is a part of the change where a mistake breaks working clients, data or security.
 
 When in doubt, the change is risky. Anything not small and safe is risky.
 
 **Precedence:** the workspace instructions or the caller override the classification only with an explicit reviewer count, or a separate reviewer named for each checklist. One reviewer takes both checklists, two take one each. Naming a reviewer or agent (such as `review` or `code-reviewer`) only chooses who reviews; the classification still decides how many.
 
-1. **Start the reviewers**, in one subagent call when the tool allows. Each reviewer's task is the full text of its reference file or files, read by you and passed verbatim, plus the common input. A reviewer with both checklists also gets the report instruction from the small-and-safe point below.
-   - **Small and safe: one reviewer** gets both checklists, [`references/technical.md`](references/technical.md) then [`references/architecture.md`](references/architecture.md), and reports both scopes as two complete labelled reports, Technical and Architecture, each in the output format of its own checklist, so no section, verdict or coverage row is merged or lost. The coverage rows stay apart, as two reviewers' reports would.
+1. **Start the reviewers**, in one subagent call when the tool allows. Each reviewer's task is the full text of its reference file or files, read by you and passed verbatim, plus the common input.
+   - **Small and safe: one reviewer** gets both checklists, [`references/technical.md`](references/technical.md) then [`references/architecture.md`](references/architecture.md), and returns two separate labelled reports (Technical, Architecture), each in its checklist's output format, coverage rows not merged.
    - **Risky: two reviewers in parallel**, one per checklist:
      - **Technical:** [`references/technical.md`](references/technical.md)
      - **Architecture:** [`references/architecture.md`](references/architecture.md)
 
-   In OMP, one `task` call, each reviewer with the scope of its checklist(s) as `solutionSpace`. Two reviewers:
-
-   ```javascript
-   task({
-     context: "<common input>",
-     tasks: [
-       { name: "ReviewTechnical", agent: "review", task: "<full text of references/technical.md>",
-         solutionSpace: "Technical correctness, predicate and validator guarantees, edge cases, error paths, test quality, reliability, security, performance, logging and monitoring; findings open" },
-       { name: "ReviewArchitecture", agent: "review", task: "<full text of references/architecture.md>",
-         solutionSpace: "Architecture, project rules, boundaries, patterns, design principles incl. KISS and the smallest complete solution, method semantics, error architecture, contracts, pattern-change justification; findings open" }
-     ]
-   })
-   ```
-
-  One reviewer: the same call with a single entry, `name: "ReviewAll"`, whose `task` is the full text of both files and whose `solutionSpace` joins the two scopes above.
+   In OMP: one `task` call, one entry per reviewer with `agent: "review"` and its checklist's scope as `solutionSpace`.
 
    When a report lacks a section, a required field or a coverage row, ask that reviewer for it before step 4.
 2. **Traceability, while the reviewers work.** For every rule and scenario in `business-context.md`, including those outside the criteria, fill: `rule | source | implementation (file:line or none) | test and the condition its assertion checks (or none) | result (met / partial / not met / cannot assess) | gap`. Judge whether each test would fail if the rule were implemented wrongly: an inverted condition, a shifted boundary, a skipped branch. Trace important callers, dependencies and consumers outside the diff for broken existing behavior. List changes beyond the agreed scope and requirements without an implementation.
-3. **Tests.** Keep test code quality separate from test results. Take results from the `verify-changes` report and the CI checks; run tests yourself only in the worktree, locally, without external effects. Mark anything not run. Green CI or high coverage does not prove a rule is implemented.
+3. **Tests.** Keep test code quality separate from test results. Take results from the `verify-changes` report and the CI checks; run tests yourself only when neither a `verify-changes` report for this `HEAD` SHA nor CI results on the head SHA exist, only the affected ones, in the worktree, without external effects. Mark anything not run. Green CI or high coverage does not prove a rule is implemented.
 4. **Observations outside your areas.** Write down every architecture, pattern or technical remark you notice while reading, with `file:line` and what you compare it to. Do not judge it yet.
 
 Your coverage areas: `business context`, `rules → implementation`, `rules → tests`, `scope`, `existing behavior`, `test execution`.
@@ -86,7 +72,7 @@ Your coverage areas: `business context`, `rules → implementation`, `rules → 
 ## 4. Verify the findings
 
 1. Confirm each reviewer finding in the code and sources, or reject it. For `documented` and `convention`, open the document or the reference files; for `principle`, confirm the stated effect in the code; for `missing_justification`, confirm the justification is absent from the sources and the docs; for `test_gap`, confirm the missing test or weak assertion; for `observability_gap`, confirm the project uses the named tool; for `design_suggestion`, confirm the stated cost in the code and that the alternative still meets every rule in `business-context.md` and no binding decision or constraint requires the current code. Reject behavior the business context or the docs explicitly allow. Correct wrong priorities or lines. Reject what you cannot confirm.
-2. Match each of your observations against the findings. Merge the covered ones. Send each uncovered one to the right reviewer for a judgment and wait; if that reviewer is gone, judge it yourself with the same criteria. Every observation ends as a finding or a rejected finding with the reason.
+2. Match each of your observations against the findings. Merge the covered ones. Send the uncovered ones to the right reviewer for a judgment, all in one message per reviewer, and wait; if that reviewer is gone, judge it yourself with the same criteria. Every observation ends as a finding or a rejected finding with the reason.
 3. Check each `context_challenge` in the sources. Fix accepted ones in `business-context.md` and recompute the affected table rows; list rejected ones with the reason.
 4. Merge findings with the same root cause into one with the higher priority (lower number) and all sources. Different problems on the same line stay separate.
 5. Merge coverage. An area a reviewer did not report is `unverified`, with the reason "missing from the reviewer's result".
@@ -101,7 +87,7 @@ Verdict:
 - `ISSUES`: at least one confirmed finding other than `design_suggestion`, or a table gap.
 - `INCONCLUSIVE`: a required reviewer was unavailable or an area stayed unverified.
 
-Write the report to `review-change.md` in the artifacts directory, starting with the reviewed `HEAD` SHA, the verdict and one classification line, and return it. The classification line says whether the change was small and safe or risky, and why: the changed-line count after exclusions and the risk areas hit, or "none"; or that the workspace instructions or the caller set the reviewers. It shows why there was one reviewer or two. Example: `Classification: small and safe (40 lines, risk areas: none), 1 reviewer`.
+Write the report to `review-change.md` in the artifacts directory, starting with the reviewed `HEAD` SHA, the verdict and one classification line, and return it. Classification line: `Classification: <small and safe|risky> (<N> lines, risk areas: <list|none>), <1|2> reviewer(s)`, or `set by caller` instead of the parenthesis. Example: `Classification: small and safe (40 lines, risk areas: none), 1 reviewer`.
 
 1. **Findings** in four groups. Each has priority, location (`file:line`, `task <ID>` or `PR description`), description, evidence, suggested fix, source reviewer (architecture findings also their `reference`), and a handling class for the author: `fix`, `out of scope`, `justify or simplify` (for `missing_justification`), `fix PR description` or `tracker correction` (for task vs PR mismatches), `author's call` (for `design_suggestion`), or `ask user` (needs a breaking change or contradicts the task).
    - Confirmed problems: `defect`, `observability_gap`, rules not met.

@@ -1,6 +1,6 @@
 ---
 name: to-spec
-description: "Use when the user asks for a spec, PRD or RFC, or to turn a discussion into one. Synthesizes what is already decided, grounds it in the code, settles the few remaining decisions in one round of questions, and writes a spec that an agent without the conversation can plan and implement from. Triggers: write a spec, spec this, PRD for <feature>, to-spec, /to-spec."
+description: "Use when the user asks for a spec, PRD or RFC, or to turn a discussion into one. Turns what is decided into a code-grounded spec a fresh agent can implement from, after one round of questions. Triggers: write a spec, spec this, PRD for <feature>, to-spec, /to-spec."
 ---
 
 # To spec
@@ -31,7 +31,7 @@ If the project has a glossary or decision records (`GLOSSARY.md`, `docs/adr/`), 
    When sources disagree, the newest decision by the person who owns it wins. Note the replaced decision in *Current state*. If you cannot tell which is newer, ask.
 3. **Consider two shapes.** When the design is not obvious, sketch at least two structurally different approaches, not two variants of one. Reject a shape that gives one task two ways to be done, gives one piece of state two owners, or makes two lists that must be kept in sync by hand. Choose one and keep one line on why the other lost. Skip this step when only one sensible shape exists, and say so.
 4. **Pick the test seams.** Choose where the behaviour is tested: the highest existing seam that can observe it, and as few seams as possible. Name the existing tests the new ones follow. Name the live check (driving the real app or calling the real endpoint) that proves it works end to end.
-5. **Check compatibility and rollout.** Go through the list in [`references/template.md`](references/template.md) under *Compatibility and rollout*: clients already in users' hands, stored data, reversibility, release order, flags. Write down what applies. Write `None` when you checked and nothing applies; never drop the section.
+5. **Check compatibility and rollout.** Go through *Compatibility and rollout* in [`references/template.md`](references/template.md) and write down what applies (`None` when nothing does).
 6. **Ask one round.** Collect every decision that is still open and that only the user can make: product choices, trade-offs, scope cuts, your seams. Ask them in one numbered message. Give your recommended answer for each, worded so that "yes" accepts it. Never ask what the code, the docs or a quick experiment can answer. When an answer would only change a detail, decide it yourself, mark it as an assumption and move on. End the message with a short list of what you assumed without asking, so the user can catch a wrong one. Whatever stays open goes to *Open questions*.
 7. **Write the spec** with [`references/template.md`](references/template.md). Keep every required section.
 8. **Check it** against the list below and fix what fails.
@@ -51,8 +51,5 @@ If the project has a glossary or decision records (`GLOSSARY.md`, `docs/adr/`), 
 ## Check before handing over
 
 - Could an agent without this conversation plan the work from the spec alone?
-- Does every scenario have an observable result, and does the testing section say where each one is tested?
+- Does the testing section say where each scenario is tested?
 - Is every open question marked blocking or non-blocking, with someone who answers it?
-- Are *Compatibility and rollout* and *Out of scope* filled in, even if only with `None`?
-- Are there no file paths, line numbers or code beyond decision snippets?
-- Does every claim about today's system come from code you read, and is the rest marked as an assumption?
