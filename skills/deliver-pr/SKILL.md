@@ -26,7 +26,7 @@ Defaults when nothing says otherwise:
 
 `verify-changes` and `review-change` never run in your own context: build logs stay out of it, and the review comes from an agent that did not write the code.
 
-1. **Start** each stage run in a fresh `review` subagent with your harness's subagent tool (in OMP `task` with `agent: "review"`, in Claude Code the Agent tool with `subagent_type: "review"`). `setup-k0siara-skills` creates it and decides its model; never pass a model. If it does not exist or cannot be selected by name, start a plain subagent with the same prompt; for `review-change`, on a model other than yours when the tool allows.
+1. **Start** each stage run in a fresh subagent with your harness's subagent tool: `verify-changes` in the `verify` agent, `review-change` in the `review` agent (in OMP `task` with `agent: "verify"` or `"review"`, in Claude Code the Agent tool with `subagent_type: "verify"` or `"review"`). `setup-k0siara-skills` creates them and decides their models; never pass a model. If the agent does not exist or cannot be selected by name, start a plain subagent with the same prompt; for `review-change`, on a model other than yours when the tool allows.
 2. **Prompt:** run skill `<stage>`; the worktree path, the base ref and the `task.md` path; the report file (`verify.md` or `review-change.md` in the artifacts directory); no push, no PR, no comments, no tracker writes. For `verify-changes`, add that it may fix code inside the task's scope and must commit nothing, and that the `## Verification commands` in `task.md`, if present, are a starting point, not a substitute for the checks the instructions require.
 3. **Wait** for the result in the background when the tool allows, without polling, and do not touch the worktree meanwhile: `verify-changes` edits the same files.
 4. **Collect** from the report file, not from the agent's summary. It must be written after the agent started and name the current `HEAD` SHA (for `verify-changes`, also the uncommitted files you expect). A missing or stale report counts as `INCONCLUSIVE`.
@@ -119,7 +119,7 @@ Checks `verify-changes` deferred to CI are not gaps: the PR's verification secti
    - `fix PR description`: fix `pr-body.md`; `tracker correction`: a tracker proposal in step 7;
    - `author's call`: apply only when it stays in scope and its trade-off costs nothing the task needs, else list it in the final report;
    - `ask user`: stop and ask.
-5. Commit the fixes locally. If they changed code, build or config files, run step 5 again in a fresh stage agent, scoped to the fixes: pass the previous `verify.md` as its previous report, so it reruns only the checks the fixes can affect. Before the first push you may fold them into existing commits; after it, add new commits. Review the diff of the fixes yourself. Do not rerun the reviewers.
+5. Commit the fixes locally. If they changed code, build or config files, run step 5 again in a fresh stage agent, scoped to the fixes: pass the previous `verify.md` as its previous report, so it reruns only the checks the fixes can affect. Tell it to carry over the runtime proof (simulator, device or `verify-<app>` result) from that report, marked with the SHA it ran on, unless the fixes change the screen or flow files that proof exercised; rerun it only then. Format, lint, build and the tests of the affected modules run as before. Before the first push you may fold them into existing commits; after it, add new commits. Review the diff of the fixes yourself. Do not rerun the reviewers.
 
 ## 7. Finish
 
