@@ -12,7 +12,7 @@ Prove that the current changes work, with evidence a reviewer can rerun. A check
 - Worktree: the given path, else the current directory.
 - Base: the given ref, else the merge base with the repository's default branch on `origin`.
 - Task brief: an optional `task.md` (goal, acceptance criteria, artifacts directory). Without it, take the goal from the user's request.
-- Previous report: an optional earlier `verify.md` for the same change. When given, rerun only the checks the changes since its `HEAD` can affect and carry the other results over, marked with the SHA they ran on.
+- Previous report: an optional earlier `verify.md` for the same change. When given, rerun only the checks the changes since its `HEAD` can affect and carry the other results over, marked with the SHA they ran on. A caller may also ask to carry over the runtime proof (step 2); the report then shows the SHA that proof ran on.
 
 Run nothing against production systems or live customer data.
 
@@ -40,10 +40,11 @@ No such skill, or no environment to run it (device, simulator, credentials): rec
 - Run format first, on the changed files when the tool allows. Formatters rewrite files, so review what they changed and re-stage it when the repository requires formatted commits.
 - Run slow commands so they do not block you, through the background facility the environment instructions name. Wait for the result instead of polling.
 - For each check, record the command, exit code and, on failure, the relevant output lines.
+- Do not run `clean` (`flutter clean`, `gradle clean`, deleting build directories) without a symptom of stale artifacts: a compile error that does not match the code, mismatched generated-code versions, missing generated files. When you do, record the symptom in the report.
 
 ## 4. Fix failures
 
-1. Find the root cause. Fix it in the task's code, then rerun the failed check and every check the fix can affect.
+1. Find the root cause. Fix it in the task's code so the existing check passes, then rerun the failed check and every check the fix can affect. Do not write new tests or documentation: a missing test or missing documentation is a `FAIL`, reported as a gap for the implementer.
 2. A failure in code the change does not touch may be pre-existing. Check the same CI job on the base's latest commit; only if CI does not show it, run the check on the base locally. If it also fails there, report it as pre-existing with that evidence and do not fix it as part of this change.
 3. Never make a check pass by skipping or deleting tests, weakening assertions, lowering thresholds, adding suppressions or disabling a check. That needs the user's explicit approval.
 4. After 5 attempts on the same kind of failure, stop and return `FAIL` with the evidence.

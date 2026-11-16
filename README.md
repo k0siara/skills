@@ -8,7 +8,7 @@ Agent skills by [@k0siara](https://github.com/k0siara). They cover one path: fro
 npx skills@latest add k0siara/skills
 ```
 
-Then run the `setup-k0siara-skills` skill once (`/setup-k0siara-skills`). It asks which model reviews and verifies, and creates the `review` agent that `deliver-pr`, `review-change` and `review-pr` run their verification and review subagents in, for each harness it finds: OMP, Codex and Claude Code. The agent has no instructions of its own; each skill passes the full prompt. In OMP it runs on the model you choose; in Codex and Claude Code it uses the session's model. Without the setup these skills fall back to plain subagents.
+Then run the `setup-k0siara-skills` skill once (`/setup-k0siara-skills`). It asks which model verifies and which reviews, and creates the `verify` and `review` agents that `deliver-pr`, `review-change` and `review-pr` run their subagents in, for each harness it finds: OMP, Codex and Claude Code. Two agents because verification mostly runs commands and needs a cheaper, lower-effort model than review. The agents have no instructions of their own; each skill passes the full prompt. In OMP they run on the models you choose; in Codex and Claude Code they use the session's model. Without the setup these skills fall back to plain subagents.
 
 The skills take company-specific rules (tracker, Git, review conventions) from your workspace instructions (`AGENTS.md`, `CLAUDE.md` and the files they point to), so they carry no project knowledge themselves.
 
@@ -70,7 +70,7 @@ Go top to bottom. Skip a stage when you already have its output: a small, clear 
 
 | Stage | Skill | Use it when | Why |
 |---|---|---|---|
-| Setup | [setup-k0siara-skills](./skills/setup-k0siara-skills/SKILL.md) | Once after installing, and to change the review model | Creates the `review` agent the review and verification steps run in |
+| Setup | [setup-k0siara-skills](./skills/setup-k0siara-skills/SKILL.md) | Once after installing, and to change the review model | Creates the `verify` and `review` agents the verification and review steps run in |
 | 1 · Understand | [restate-problem](./skills/restate-problem/SKILL.md) | Before non-trivial work | Catches a misunderstanding before it costs a spec |
 | | [why](./skills/why/SKILL.md) | "What did we decide about X?", "How is X supposed to work?" | Answers from the tracker, docs, PRs and notes with sources instead of guesses, and lists what is still unknown and who knows |
 | | [ask-around](./skills/ask-around/SKILL.md) | The record does not answer something | Turns open questions into short messages per person, then folds the answers back in |
