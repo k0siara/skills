@@ -36,6 +36,7 @@ A pattern change is a new way of solving a recurring problem in this codebase, o
 3. With a rationale, assess: what problem justifies the change; why the existing solution is not enough; whether the new approach stays consistent with the project rules and principles; its effect on consistency, maintenance and compatibility. A rationale proves only what <input> says a source proves, so check whether the existing or precedent solution would meet the same outcome with less code. A rationale does not make the change acceptable by itself: report a `deviation` when its cost is not justified by the stated problem.
 4. Without a rationale, report `missing_justification`: a gap the author must fill, distinct from a confirmed defect. Name the pattern replaced and the question to answer. When the change also breaks a documented rule, report one `deviation` with `documented` reference instead, and state in its body that no rationale was found.
 5. Do not demand a separate ADR unless the project docs require one for this kind of change.
+6. A general statement that a value is kept for context, retention or propagation is not a rationale for public exposure. For visibility, the only rationale is a named external consumer (see the visibility audit in <procedure>).
 </pattern-change>
 
 <method-semantics>
@@ -68,6 +69,13 @@ Finding no simplification is a valid result; do not force one.
    - readability: size, nesting, flag parameters and magic values against peers;
    - reuse: an existing helper, base class, extension or abstraction already covers the new code (name its path);
    - naming and file placement that the project convention dictates.
+4a. Visibility audit: for every constructor property, property, and interface member the patch adds or changes, build one row `member | external consumers (or none) | required visibility | verdict`.
+   - Find consumers with grep across the whole repository, not only the diff, including reads through an interface or a parent type.
+   - Required visibility is the smallest that still allows every found consumer. With no external consumer, it is `private`.
+   - A required constructor argument that is only retained internally is `private val`. A public getter for it is an extra contract, not a requirement.
+   - Membership in an interface needs a real consumer that reads the member through that interface. Storing context in an implementation does not need one.
+   - Compare with at least two peers of the same role (see step 3) that retain the same kind of value.
+   - Verdict: `ok` when the visibility equals the required one, otherwise `deviation` with `principle` (encapsulation) and the concrete consequence, e.g. "every future external read becomes a contract change".
 5. Boundaries: every type, call, value or error introduced by the patch that crosses a layer or module boundary. Locate the consuming side, which is often outside the diff, and confirm the crossing goes through the layer the docs or peers use, without skipping a layer, inverting a dependency or leaking a lower-layer type.
 6. Contracts: for every changed public API, DTO, shared module or published interface, locate its consumers. When consumers live outside the repository (other services, released app versions), treat a removed or renamed field, a changed type or changed semantics as breaking, unless the docs define a compatibility or versioning mechanism and the patch uses it.
 7. Pattern changes per <pattern-change>.
@@ -95,12 +103,13 @@ Do not report:
 - code not introduced by the patch;
 - a principle finding without a concrete consequence in this code;
 - taste, speculative future needs, or a suggestion lacking any part a `design_suggestion` requires;
+- a visibility row with `ok` or `private` supported only by the general statement that the value is needed for context, retention or propagation. Only a concrete external consumer of the member justifies a wider visibility;
 - assumptions about author intent, including an invented rationale;
 - out-of-scope issues listed in <scope>.
 </criteria>
 
 <coverage>
-Areas: `project_instructions`, `responsibility_boundaries`, `patterns_conventions`, `design_principles` (SOLID, Clean Architecture, KISS and the smallest complete solution, testability), `method_semantics`, `error_architecture`, `public_contracts`, `pattern_change_justification`.
+Areas: `project_instructions`, `responsibility_boundaries`, `patterns_conventions`, `design_principles` (SOLID, Clean Architecture, KISS and the smallest complete solution, testability), `method_semantics`, `error_architecture`, `public_contracts`, `pattern_change_justification`, `visibility_encapsulation`.
 Statuses:
 - `checked`: evidence of the docs and peer files compared, with paths.
 - `issue_found`: the titles of the findings.
@@ -133,7 +142,7 @@ One entry per finding, or `none`:
 - **body**: one paragraph, neutral tone: what deviates, from which rule, pattern or principle, what it costs to maintain, ending with the fix in one sentence; for `missing_justification`: which pattern changes, where the rationale was looked for, and the question the author must answer; for `design_suggestion`: the cost of the current code, the alternative, and what it gives up.
 
 ## Coverage
-Table `area | status | evidence`, exactly one row per area in <coverage>.
+Table `area | status | evidence`, exactly one row per area in <coverage>. For `visibility_encapsulation`, the evidence is the visibility table from <procedure> step 4a, with one row per changed member, or `not_applicable` when the diff adds no property or interface member.
 
 ## Context challenges
 One entry per challenge, or `none`: **claim** (the business-context statement, quoted with its ID) and **evidence** (the source fragment or code location that contradicts it or shows it unsupported).

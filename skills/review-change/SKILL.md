@@ -76,6 +76,7 @@ Your coverage areas: `business context`, `rules → implementation`, `rules → 
 3. Check each `context_challenge` in the sources. Fix accepted ones in `business-context.md` and recompute the affected table rows; list rejected ones with the reason.
 4. Merge findings with the same root cause into one with the higher priority (lower number) and all sources. Different problems on the same line stay separate.
 5. Merge coverage. An area a reviewer did not report is `unverified`, with the reason "missing from the reviewer's result".
+6. Visibility completeness (`review-change` only): list every `val`, `var`, constructor property and interface member the diff adds or changes (grep the `pr.diff`). Each one must have a row in the reviewer's `visibility_encapsulation` table. Add the missing rows yourself, with grep evidence for the external consumers, before the verdict. A `Findings: none` result is not accepted while a row shows a wider visibility than its consumers require.
 
 Priorities: P0 blocks release, P1 fix in the next cycle, P2 fix eventually, P3 nice to have.
 
