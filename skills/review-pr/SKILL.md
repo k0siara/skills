@@ -17,12 +17,12 @@ Write the report and questions in the user's language. Keep a todo list with ste
 
 ## 1. Check out the PR
 
-1. Read the whole PR: number, author, state (draft, mergeable), head and base, head SHA, title, body, labels, and every CI check on the head SHA (name, status, conclusion, job link). Note running checks and move on; do not wait. Take the task ID from the title or branch.
+1. Read the whole PR: number, author, state (draft, mergeable), head and base, head SHA, title, body, labels, linked issues (`closingIssuesReferences`), and every CI check on the head SHA (name, status, conclusion, job link). Note running checks and move on; do not wait. Take the task ID from the title, branch or linked issues.
 2. Read every comment with its replies from all three sources: general PR comments, review bodies and inline threads (GraphQL `reviewThreads`: file, line, every comment, `isResolved`, `isOutdated`). Get 1-2 in one `gh api graphql` query (PR, head commit `statusCheckRollup`, `comments`, `reviews`, `reviewThreads` with comments); fetch further pages only where `hasNextPage`, to the end, comments inside a thread included.
 3. Fetch `origin pull/<N>/head` and use a worktree at the instructed location, always detached at the head SHA, never on a local PR branch: no path → `worktree add --detach`; clean → `checkout --detach`; local changes → no reset, blocker. A worktree `HEAD` other than the head SHA is a blocker.
 4. Base: `git merge-base <base SHA> <head SHA>`.
 
-A missing task ID or an empty PR body does not block the review; pass it on as a fact.
+A missing task ID, an empty PR body or a description in any other format does not block the review; pass it on as a fact. `review-change` decides what blocks.
 
 ## 2. Run review-change
 
