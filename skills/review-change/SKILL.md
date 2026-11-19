@@ -33,7 +33,7 @@ The author checks what it meant to build, so the review comes from someone else.
 
 Write `business-context.md` in the artifacts directory with [`references/business-context.md`](references/business-context.md), before you open the diff or the changed code. Do not fit the intent to the implementation.
 
-1. **Sources, complete and read-only:** the task (title, description, acceptance criteria, status, every comment including resolved threads), its parent and project, relations, and linked documents that explain requirements or scope. The PR body is a source too. Without a task ID, look for one only in the PR body; never search for the task by its content, since you may attach the wrong one. A missing task is a mismatch.
+1. **Sources, complete and read-only:** the task (title, description, acceptance criteria, status, every comment including resolved threads), its parent and project, relations, and linked documents that explain requirements or scope. The PR body and the commit messages (`git log <base>..HEAD`) are sources too. Without a task ID, look for one only in the PR body and the issues the PR links; never search for the task by its content, since you may attach the wrong one. A missing task is a mismatch; intent and scope then come from the PR body, the linked issue and the commits.
 2. **Classify the PR discussion**, when there is one. Decisions, requirement clarifications, scope changes and design rationale, whoever wrote them, go into the context with source and quote. Remarks about the code (bugs, style, suggestions) go on an "earlier remarks" list for the caller and never to the reviewers, so their assessments stay independent. Split a mixed entry. Never hide a business decision for the sake of independence.
 3. **Compare** the task, the PR body and the changed-file list: goals described differently, criteria missing from the PR body, scope wider or narrower than the task, repository areas the task does not explain, and gaps such as an empty PR body or no criteria.
 
@@ -63,7 +63,7 @@ When in doubt, the change is risky. Anything not small and safe is risky.
    In OMP: one `task` call, one entry per reviewer with `agent: "review"` and its checklist's scope as `solutionSpace`.
 
    When a report lacks a section, a required field or a coverage row, ask that reviewer for it before step 4.
-2. **Traceability, while the reviewers work.** For every rule and scenario in `business-context.md`, including those outside the criteria, fill: `rule | source | implementation (file:line or none) | test and the condition its assertion checks (or none) | result (met / partial / not met / cannot assess) | gap`. Judge whether each test would fail if the rule were implemented wrongly: an inverted condition, a shifted boundary, a skipped branch. Trace important callers, dependencies and consumers outside the diff for broken existing behavior. List changes beyond the agreed scope and requirements without an implementation.
+2. **Traceability, while the reviewers work.** For every rule and scenario in `business-context.md`, including those outside the criteria, fill: `rule | source | implementation (file:line or none) | test and the condition its assertion checks (or none) | result (met / partial / not met / cannot assess) | gap`. When the `verify-changes` report or the PR body has an acceptance-criteria evidence table, check that each piece of evidence exists and proves its criterion instead of interpreting the criterion anew. Judge whether each test would fail if the rule were implemented wrongly: an inverted condition, a shifted boundary, a skipped branch. Trace important callers, dependencies and consumers outside the diff for broken existing behavior. List changes beyond the agreed scope and requirements without an implementation.
 3. **Tests.** Keep test code quality separate from test results. Take results from the `verify-changes` report and the CI checks; run tests yourself only when neither a `verify-changes` report for this `HEAD` SHA nor CI results on the head SHA exist, only the affected ones, in the worktree, without external effects. Mark anything not run. Green CI or high coverage does not prove a rule is implemented.
 4. **Observations outside your areas.** Write down every architecture, pattern or technical remark you notice while reading, with `file:line` and what you compare it to. Do not judge it yet.
 
@@ -76,6 +76,7 @@ Your coverage areas: `business context`, `rules → implementation`, `rules → 
 3. Check each `context_challenge` in the sources. Fix accepted ones in `business-context.md` and recompute the affected table rows; list rejected ones with the reason.
 4. Merge findings with the same root cause into one with the higher priority (lower number) and all sources. Different problems on the same line stay separate.
 5. Merge coverage. An area a reviewer did not report is `unverified`, with the reason "missing from the reviewer's result".
+6. **Blocking or follow-up,** for every confirmed finding and table gap. It blocks only when it shows an acceptance criterion broken or not implemented (without criteria: behavior the PR body, the linked issue or the commits promise), failed verification, red CI or failing tests, a regression of existing behavior, or a security problem or data loss. A blocking finding names the criterion or behavior it breaks and is P0–P2 (raise a P3 to P2). Everything else (edge cases outside the scope, style, improvements, test, justification or description gaps, design suggestions) is a follow-up and P3. A missing task, criteria table or evidence table, or a PR body in another format, never blocks by itself. Mark a finding whose pattern a linter or static check could catch with `[LINT?]` and one sentence proposing the rule.
 
 Priorities: P0 blocks release, P1 fix in the next cycle, P2 fix eventually, P3 nice to have.
 
@@ -83,20 +84,21 @@ Priorities: P0 blocks release, P1 fix in the next cycle, P2 fix eventually, P3 n
 
 Verdict:
 
-- `PASS`: no confirmed finding other than `design_suggestion`, no unmet rule, every area covered.
-- `ISSUES`: at least one confirmed finding other than `design_suggestion`, or a table gap.
+- `PASS`: no blocking finding, every area covered.
+- `ISSUES`: at least one blocking finding.
 - `INCONCLUSIVE`: a required reviewer was unavailable or an area stayed unverified.
 
 Write the report to `review-change.md` in the artifacts directory, starting with the reviewed `HEAD` SHA, the verdict and one classification line, and return it. Classification line: `Classification: <small and safe|risky> (<N> lines, risk areas: <list|none>), <1|2> reviewer(s)`, or `set by caller` instead of the parenthesis. Example: `Classification: small and safe (40 lines, risk areas: none), 1 reviewer`.
 
-1. **Findings** in four groups. Each has priority, location (`file:line`, `task <ID>` or `PR description`), description, evidence, suggested fix, source reviewer (architecture findings also their `reference`), and a handling class for the author: `fix`, `out of scope`, `justify or simplify` (for `missing_justification`), `fix PR description` or `tracker correction` (for task vs PR mismatches), `author's call` (for `design_suggestion`), or `ask user` (needs a breaking change or contradicts the task).
-   - Confirmed problems: `defect`, `observability_gap`, rules not met.
+1. **Blocking findings.** Each has priority, location (`file:line`, `task <ID>` or `PR description`), the criterion or behavior it breaks, description, evidence, suggested fix, source reviewer (architecture findings also their `reference`), and a handling class for the author: `fix`, `out of scope`, `justify or simplify` (for `missing_justification`), `fix PR description` or `tracker correction` (for task vs PR mismatches), `author's call` (for `design_suggestion`), or `ask user` (needs a breaking change or contradicts the task).
+2. **Follow-up:** every other finding, with the same fields except the broken criterion, in four groups. This skill only proposes them; the caller decides what to fix or file as issues.
+   - Problems: `defect`, `observability_gap`, rules not met.
    - Gaps in requirements, tests and justification: `test_gap`, table gaps, `missing_justification`, ambiguities, task vs PR mismatches.
    - Architecture deviations: `deviation`.
-   - Design suggestions: `design_suggestion`, from either reviewer. They do not block merge and do not change the verdict.
-2. **Traceability table.**
-3. **Tests:** read, run (command and result), confirmed by CI, not run.
-4. **Coverage:** `area | reviewer | result | evidence or reason`, where the result is `checked`, `issue found`, `not applicable` or `unverified`. List unverified parts under the table as verification limits.
-5. **Rejected findings,** one line each with the reason.
-6. **Earlier remarks,** when there was a PR discussion: the list from step 2, for the caller.
-7. **Summary:** two or three sentences on the change's overall quality.
+   - Design suggestions: `design_suggestion`, from either reviewer.
+3. **Traceability table.**
+4. **Tests:** read, run (command and result), confirmed by CI, not run.
+5. **Coverage:** `area | reviewer | result | evidence or reason`, where the result is `checked`, `issue found`, `not applicable` or `unverified`. List unverified parts under the table as verification limits.
+6. **Rejected findings,** one line each with the reason.
+7. **Earlier remarks,** when there was a PR discussion: the list from step 2, for the caller.
+8. **Summary:** two or three sentences on the change's overall quality.

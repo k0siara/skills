@@ -39,6 +39,8 @@ Report what was actually established:
 - Performance change → one primary metric with its unit as `before → after` in the stated environment; link the full measurements.
 - Important failure, skipped check or remaining uncertainty.
 
+When the verification report has an acceptance-criteria table, include it here as the report states it, with no claims the report does not make.
+
 Build success is not proof of runtime behavior. A mock is not a real integration. Do not infer a pass from the presence of tests or a checked box in a plan. Call a failure pre-existing only with supporting evidence; otherwise describe it as unresolved.
 
 Use results relevant to the final changes. If later edits invalidate an earlier result, identify the gap instead of presenting the old run as current. For a bug fix, include failing-before/passing-after evidence when available, but never invent the "before" result. Link lengthy logs rather than copying them.

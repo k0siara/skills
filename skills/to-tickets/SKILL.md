@@ -76,7 +76,7 @@ The proof that a ticket is self-contained. It runs for every ticket, every time,
 ## Slicing rules
 
 - **Vertical.** A ticket cuts a narrow but complete path through every layer it needs (data, API, UI, tests), so its result can be shown or checked on its own. A ticket that only adds a layer nobody can observe is not a slice.
-- **One repository, one PR, one outcome.** Work across repositories becomes dependent tickets. The side that provides a contract ships first and keeps working for the consumers already released; the consumer follows.
+- **One repository, one PR, one outcome.** Work across repositories becomes dependent tickets. The parent states the contract between them: endpoint or schema, fields, error codes, versioning and backward compatibility. The provider's ticket comes first and blocks every consumer ticket; the provider keeps working for the consumers already released.
 - **Fits one agent.** One area, at most three acceptance criteria, small enough for one fresh context window. When a ticket needs more criteria, split it. The limit is on scope; it never limits context, decisions or verification detail.
 - **Prefactor first.** A refactor that makes the slices simple is its own ticket that the slices wait for.
 - **Wide mechanical changes go expand–contract.** When one rename or retype breaks callers across the codebase, add the new form beside the old, move callers in batches (one ticket each, blocked by the expand), then delete the old form in a ticket blocked by every batch.

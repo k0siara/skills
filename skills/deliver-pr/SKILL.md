@@ -81,7 +81,9 @@ Open a todo list with the seven steps below. Keep at most one step `in_progress`
 1. Use the code-search order the instructions prescribe (for example a code knowledge graph first, then text search).
 2. Read the files the task names, the closest analogous implementations and their tests.
 3. Identify the call flow, contracts, dependencies, files to change, compatibility risks and the commands that will verify the change (record them in `task.md` under `## Verification commands`).
-4. Do not ask the user about decisions that existing code patterns answer unambiguously.
+4. If the instructions point to a feature map (default `docs/FEATURES.md` when it exists), read it to find the feature's files, flags and events. When the change adds or removes a screen, route or endpoint, plan the map's update in this PR. No map: skip this.
+5. When the task depends on a contract from another repository (a blocking task or the provider's PR), read the provider's PR or branch and write the contract into `task.md` under `## Constraints and decisions`, so the change is verified and reviewed against it, not against assumptions. This PR still changes one repository.
+6. Do not ask the user about decisions that existing code patterns answer unambiguously.
 
 ## 3. Plan
 
@@ -112,7 +114,7 @@ Checks `verify-changes` deferred to CI are not gaps: the PR's verification secti
 1. Commit the changes locally following the repository's commit rules. Do not push.
 2. Run the `pr` skill to write the draft PR title and description to `pr-body.md` in the artifacts directory. The `pr` skill decides the format, language, repository template and content; never write the description in your own format. If the `pr` skill is not installed, stop and tell the user to install it with `npx skills@latest add k0siara/skills -g`.
 3. Run the `review-change` skill with the worktree, the base, `task.md`, `pr-body.md` and the `verify-changes` result: in a stage agent (see "Stage agents"). It reviews and does not edit.
-4. Handle every confirmed finding and every gap in its rules table, regardless of priority, by its handling class:
+4. Handle every blocking finding by its handling class, and every follow-up as `author's call`:
    - `fix`: fix it;
    - `out of scope`: do not fix; list it in the final report;
    - `justify or simplify`: add the justification to `pr-body.md`; without one, simplify the code to the existing pattern;
@@ -124,7 +126,7 @@ Checks `verify-changes` deferred to CI are not gaps: the PR's verification secti
 ## 7. Finish
 
 1. Check the publication prerequisites the instructions define, such as a required tracker description. Anything that needs approval gets a proposal first.
-2. Push and create or update the PR as the instructions require (base, reviewers, labels, formatting before push) by running the `pr` skill with `pr-body.md` as its draft, refreshed from the final diff and the latest verification and review results. It publishes the title and body; they link the task and state the verification results, including one line on the pre-PR review: findings fixed and findings rejected.
+2. Push and create or update the PR as the instructions require (base, reviewers, labels, formatting before push) by running the `pr` skill with `pr-body.md` as its draft, refreshed from the final diff and the latest verification and review results. It publishes the title and body; they link the task and state the verification results, including one line on the pre-PR review: findings fixed and findings rejected. For a contract from another repository, the body links the provider's PR and states the merge and deployment order (provider first, backward compatible for released clients), and a comment on the provider's PR links back to this one.
 3. Read the PR back and verify its URL, head commit, base, branch, requested reviewers and the CI state available right now.
 4. Delete the artifacts the instructions mark as temporary. Keep the worktree.
 5. Report to the user:

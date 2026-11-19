@@ -29,6 +29,8 @@ Read the CI configuration (such as `.github/workflows/`) only to learn what runs
 
 Group the checks as: format, static checks (lint, types), build, tests. Scope tests and screenshot checks to the changed modules when the build allows it. Note any check you cannot find a command for.
 
+When the instructions point to a feature map (default `docs/FEATURES.md` when it exists), read it to find the files, flags and events of the changed feature. No map: skip it.
+
 ## 2. Add runtime proof for user-visible changes
 
 When the change alters what a user sees or does, look for a project verification skill (a skill named `verify-<app>`, or one the instructions name) for that surface. Run it for the affected flows only, never the whole end-to-end suite, and keep its evidence: screenshots, recordings, logs or responses. A change with no user-visible effect (refactoring, internal wiring) needs no runtime proof; its tests and CI's end-to-end jobs cover it.
@@ -53,7 +55,7 @@ No such skill, or no environment to run it (device, simulator, credentials): rec
 
 1. Read `git status` and the full diff from the base, including untracked files.
 2. Remove debug output, temporary files, stray artifacts and changes unrelated to the task.
-3. Confirm that the change matches the goal and each acceptance criterion, that it contains no secrets or credentials, and that it overwrote no one else's work.
+3. Confirm that the change matches the goal and each acceptance criterion, that a change adding or removing a screen, route or endpoint also updates the feature map, that it contains no secrets or credentials, and that it overwrote no one else's work.
 
 ## 6. Report
 
@@ -63,4 +65,4 @@ Results apply to the final state of the tree. If you edit anything after a check
 - `FAIL`: a required check fails after the retry limit, or the diff review found a problem you could not resolve.
 - `INCONCLUSIVE`: everything that ran passed, but a required check or the runtime proof could not run. Name each one and why. Checks deferred to CI do not make the result `INCONCLUSIVE`.
 
-Start the report with the `HEAD` SHA and the list of uncommitted files it covers. Then a table, `check | command | result | evidence`, followed by unverified items, pre-existing failures and "Deferred to CI" (each CI check left to the PR, one line each). When a task brief names an artifacts directory, also write the report to `verify.md` there.
+Start the report with the `HEAD` SHA and the list of uncommitted files it covers. Then a table, `check | command | result | evidence`, followed by unverified items, pre-existing failures and "Deferred to CI" (each CI check left to the PR, one line each). When the task has acceptance criteria, add a table `criterion | evidence | result`: evidence is a test and the condition its assertion checks, a command with its result, a screenshot or a log; result is `met`, `partial`, `not met` or `cannot check here`. When a task brief names an artifacts directory, also write the report to `verify.md` there.
