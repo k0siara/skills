@@ -1,6 +1,6 @@
 ---
 name: babysit-pr
-description: "Use when the user asks to babysit, watch or monitor a GitHub PR, or to be notified about its comments, CI, approval or merge. Watches in the background until merge or close: rebases conflicts (also after approval), applies routine unambiguous fixes, asks before anything ambiguous or published. Ends with `BABYSIT: <MERGED|CLOSED|BLOCKED> ...`."
+description: "Use when the user asks to babysit, watch or monitor a GitHub PR, or to be notified about its comments, CI, approval or merge. Watches in the background until merge or close: rebases conflicts (also after approval), applies routine unambiguous fixes, asks before anything ambiguous or published, then stops what the PR left running and removes its worktree. Ends with `BABYSIT: <MERGED|CLOSED|BLOCKED> ...`."
 ---
 
 # Babysit PR
@@ -64,11 +64,11 @@ When watching ends, the last line of your final reply is exactly one status line
 BABYSIT: <MERGED|CLOSED|BLOCKED> <pr-url> <short reason>
 ```
 
-`BLOCKED`: you stop without a merge or close (a step failed, the watcher stopped, the user must decide or asked to stop). A turn that ends with the watcher still running has no status line.
+`MERGED` and `CLOSED`: the reason says what **Clean up** removed and stopped, and what it kept and why. `BLOCKED`: you stop without a merge or close (a step failed, the watcher stopped, the user must decide or asked to stop). A turn that ends with the watcher still running has no status line.
 
 ## Start
 
-1. Read **Ignored checks**. Run **Assess** only to see where it ends; act on nothing yet. Merged → notify `info`, then **Merged**. Closed → notify `warning` and stop with `BABYSIT: CLOSED`. Anything else: go on.
+1. Read **Ignored checks**. Run **Assess** only to see where it ends; act on nothing yet. Merged → notify `info`, then **Merged**. Closed → notify `warning`, then **Closed**. Anything else: go on.
 2. Find the local checkout of `headRefName` (`git worktree list`); if there is none, create one (**Worktree**). It must be on the PR head with a clean tree. Otherwise stop and report.
 3. Handle what already exists, because the watcher's first run records existing activity without reporting it: unanswered comments and unresolved threads → **Comments** (it ends with **Assess**); none → **Assess**. Act on its result: conflicts before CI, both before approval.
 4. Start the watcher (below) unless that already happened or watching ended, and end your turn. Do not post "still waiting".
@@ -84,7 +84,7 @@ gh pr checks <pr> --json name,bucket,link,workflow   # without Ignored checks
 
 Take the first rule that applies:
 
-1. `state` `MERGED` → **Merged**. `CLOSED` → stop watching, end with `BABYSIT: CLOSED`.
+1. `state` `MERGED` → **Merged**. `CLOSED` → stop watching, then **Closed**.
 2. `mergeStateStatus` `DIRTY` or `mergeable` `CONFLICTING` → notify `warning`, then **Conflict**. This comes before CI and approval. If the user already declined the rebase for this head and base, restart the watcher instead (the PR stays not done).
 3. Any failed or cancelled check → **CI failure**, except checks the user already skipped for this head: those only restart the watcher.
 4. `reviewDecision` neither `APPROVED` nor empty (empty: the repo requires no review), or any pending check → restart the watcher.
@@ -124,7 +124,7 @@ Handle every line, at most one notification per category. Lines only say what ch
 | Line | Action |
 |---|---|
 | `merged:` | notify `info`, stop watching, then **Merged** |
-| `closed without merging` | notify `warning`, stop watching, end with `BABYSIT: CLOSED` |
+| `closed without merging` | notify `warning`, stop watching, then **Closed** |
 | `review from X (approved)` | notify `info`; a non-empty body goes to **Comments** first |
 | `comment from`, `new thread from`, `thread reply from`, `review from X (changes requested\|commented)` | notify `info` `PR #n: <k> new comments, analysing`, then **Comments** |
 | `check failed` / `required check failed` | notify `error` with check name and link |
@@ -193,16 +193,29 @@ Only when **Assess** says so: the PR is approved, no check failed or is pending,
 
 ## Merged
 
-Remove your worktree when that is safe. Whatever happens here, the status is `BABYSIT: MERGED`; its reason says whether the worktree was removed or kept, and why.
+**Clean up**, then the final reply: PR merged, what was removed, stopped and kept, then `BABYSIT: MERGED <pr-url> <clean-up summary>`.
 
-1. Remove nothing unless all hold, otherwise say why: `git branch --show-current` in the agent's working directory equals the PR's `headRefName` (the agent works in the PR's checkout, not on the user's main checkout); this agent runs no other PR watcher.
-2. If the working directory is a linked worktree (`git rev-parse --path-format=absolute --git-dir` differs from `--git-common-dir`), remove it:
-   - `git status --porcelain` is empty and `git rev-parse HEAD` equals the PR's `headRefOid` (`gh pr view <pr> --json headRefOid`), so nothing local is lost. Otherwise report what is left and keep the worktree.
-   - `git -C "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" worktree remove "$(git rev-parse --show-toplevel)"`, never `--force`. On error, report it.
-3. Final reply: PR merged, worktree removed (or why not), then `BABYSIT: MERGED <pr-url> worktree removed|kept: <why>`.
+## Closed
+
+**Clean up**, then the final reply: PR closed without merge, what was removed, stopped and kept, then `BABYSIT: CLOSED <pr-url> <clean-up summary>`.
+
+## Clean up
+
+Stop what this PR's agents left running and remove your worktree, only when that is safe. It touches nothing outside the PR's worktree, and no process that has a live parent other than you. The summary for the status line names what was removed and stopped, and what was kept and why (e.g. `worktree removed; stopped 3 processes (node, java, flutter_tester), gradle in android, simulator app-pr12-smoke; kept 1 process with a live parent (zsh)`).
+
+1. Remove and stop nothing unless all hold, otherwise say why and keep everything: `git branch --show-current` in the agent's working directory equals the PR's `headRefName` (the agent works in the PR's checkout, not on the user's main checkout); this agent runs no other PR watcher; the working directory is a linked worktree (`git rev-parse --path-format=absolute --git-dir` differs from `--git-common-dir`); `git status --porcelain` is empty and `git rev-parse HEAD` equals the PR's `headRefOid` (`gh pr view <pr> --json headRefOid`), so nothing local is lost.
+2. Stop what runs from the worktree:
+
+   ```bash
+   <skill-dir>/scripts/pr-cleanup "$(git rev-parse --show-toplevel)" --device-prefix <repo>-pr<pr> [--device-prefix <task-id>]
+   ```
+
+   `<repo>` is the repository name without the owner; add `--device-prefix <task-id>` when the caller or the project rules name a task identifier for this PR's devices. The script stops processes with a file, working directory or command line in the worktree, but only orphans (parent PID 1), your own children and the trees under them: SIGTERM, SIGKILL after 5 s. It runs `./gradlew --stop` where the worktree has `gradlew` and a `.gradle` directory. It shuts down and deletes iOS simulators, kills emulators and deletes AVDs whose name is `<prefix>` or starts with `<prefix>-`, and closes their Simulator.app windows when it can; devices without the prefix (the user's) stay. It prints one line per category: use them for the summary. A failed line does not stop the removal. Name any simulator or emulator you create for this PR `<repo>-pr<pr>-<anything>`, so this step finds it.
+3. `git -C "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" worktree remove "$(git rev-parse --show-toplevel)"`, never `--force`. On error, report it and keep the rest of the summary.
+4. In herdr (any `HERDR_*` variable in the environment, or `herdr pane current` answers) and only after step 3 removed the worktree: as the last command before the final reply, run `<skill-dir>/scripts/pr-cleanup --close-herdr-workspace`. It closes your workspace 60 s later, after your final reply, and only when the workspace has no pane but yours. Add its line to the summary. Run nothing after it.
 
 Do not delete the branch and do not change the issue tracker.
 
 ## Never
 
-Merge the PR, use plain `--force` or force-push outside **Conflict**, stop watching or leave a conflict for the user because the PR is approved, publish or resolve anything the user did not approve, or remove a worktree outside **Merged**.
+Merge the PR, use plain `--force` or force-push outside **Conflict**, stop watching or leave a conflict for the user because the PR is approved, publish or resolve anything the user did not approve, or remove a worktree, stop processes or delete devices outside **Clean up**.
