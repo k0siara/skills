@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+"""pr-cleanup: stop what a PR's agents left running before its worktree is removed.
+
+  pr-cleanup <worktree> [--device-prefix PREFIX]...
+  pr-cleanup --close-herdr-workspace
+
+The first form runs from the agent session that owns <worktree>, after the
+worktree passed its safety checks and before `git worktree remove`. The second
+is the agent's last command, after the worktree is gone. Neither touches
+anything outside these rules:
+
+processes  A process with a file or working directory inside <worktree>
+           (`lsof +D`) or with <worktree> in its command line (like `pgrep -f`),
+           and only when nothing else alive owns it: its parent is PID 1
+           (orphaned), this agent (an ancestor of this script that itself runs
+           in <worktree>) or another process being stopped. SIGTERM, then
+           SIGKILL after 5 s. This script and its ancestors are never stopped.
+gradle     `./gradlew --stop` in every directory of <worktree> (up to 3 levels,
+           not under node_modules) that has `gradlew` and a `.gradle` directory
+           (a build ran there; without one the wrapper might first download
+           Gradle). It stops every daemon of that Gradle version on the machine.
+devices    Only with --device-prefix: iOS simulators (`xcrun simctl`), running
+           Android emulators (`adb`) and AVDs ($ANDROID_AVD_HOME, default
+           ~/.android/avd) whose name is PREFIX or starts with PREFIX- (any
+           case). Simulator: shutdown, delete, then close its window in
+           Simulator.app through System Events (best effort: needs the
+           Accessibility permission). Emulator: `adb emu kill`. AVD: <name>.ini
+           and <name>.avd.
+herdr      --close-herdr-workspace, inside herdr: close this agent's workspace
+           60 s from now, from a detached process, so whoever started the agent
+           still reads its final reply. Only when the workspace has no pane but
+           this one.
+
+Stdout: one line per category with what was done, and what was kept and why.
+A failed step is reported on its line and does not stop the others. Exit 2 on
+bad arguments.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+TERM_GRACE = 5
+CLOSE_DELAY = 60
+LSOF = shutil.which("lsof") or "/usr/sbin/lsof"
+ADB = shutil.which("adb") or str(
+    Path(os.environ.get("ANDROID_HOME") or Path.home() / "Library" / "Android" / "sdk") / "platform-tools" / "adb"
+)
+AVD_HOME = Path(os.environ.get("ANDROID_AVD_HOME") or Path.home() / ".android" / "avd")
+HERDR = os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr") or "herdr"
+
+
+def run(args: list[str], cwd: str | Path | None = None, timeout: int = 120) -> str:
+    result = subprocess.run(args, cwd=cwd, text=True, capture_output=True, timeout=timeout)
+    if result.returncode:
+        detail = (result.stderr.strip() or result.stdout.strip())[:200]
+        raise RuntimeError(f"{Path(args[0]).name} {args[1] if len(args) > 1 else ''}: exit {result.returncode}: {detail}")
+    return result.stdout
+
+
+def table() -> dict[int, tuple[int, str]]:
+    """{pid: (ppid, command)} of every process."""
+    rows = (line.split(None, 2) for line in run(["ps", "-axww", "-o", "pid=,ppid=,command="]).splitlines())
+    return {int(r[0]): (int(r[1]), r[2] if len(r) > 2 else "") for r in rows if len(r) >= 2}
+
+
+def describe(pid: int, procs: dict[int, tuple[int, str]]) -> str:
+    command = procs.get(pid, (0, ""))[1]
+    return f"{pid} {Path(command.split()[0]).name if command else '?'}"
+
+
+def alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        pass
+    return True
+
+
+def send(pid: int, sig: signal.Signals) -> None:
+    try:
+        os.kill(pid, sig)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def processes(tree: str, given: str) -> str:
+    procs = table()
+    found = {int(p) for p in subprocess.run([LSOF, "-t", "+D", tree], text=True, capture_output=True).stdout.split()}
+    # <root>/pr-1 must not match <root>/pr-12; command lines may carry the path as typed (/tmp) or resolved (/private/tmp)
+    mention = re.compile("(?:" + "|".join(re.escape(p) for p in {tree, given}) + r")(?=/|\s|$)")
+    found |= {pid for pid, (_, command) in procs.items() if mention.search(command)}
+    ancestors, pid = set(), os.getpid()
+    while pid > 1 and pid not in ancestors:
+        ancestors.add(pid)
+        pid = procs.get(pid, (0, ""))[0]
+    agent, candidates = found & ancestors, found - ancestors
+    chosen, grew = set(), True
+    while grew:  # orphans, children of this agent, and the trees under them
+        grew = False
+        for pid in candidates - chosen:
+            if (parent := procs.get(pid, (0, ""))[0]) == 1 or parent in agent or parent in chosen:
+                chosen.add(pid)
+                grew = True
+    for pid in chosen:
+        send(pid, signal.SIGTERM)
+    deadline = time.monotonic() + TERM_GRACE
+    while any(alive(p) for p in chosen) and time.monotonic() < deadline:
+        time.sleep(0.1)
+    killed = [p for p in chosen if alive(p)]
+    for pid in killed:
+        send(pid, signal.SIGKILL)
+    line = f"processes: stopped {len(chosen)}" + (f" ({', '.join(describe(p, procs) for p in sorted(chosen))})" if chosen else "")
+    if killed:
+        line += f", {len(killed)} only by SIGKILL"
+    kept = sorted(p for p in candidates - chosen if alive(p))
+    if kept:
+        line += f"; kept {len(kept)} with a live parent other than this agent ({', '.join(describe(p, procs) for p in kept)})"
+    return line
+
+
+def gradle(tree: Path) -> str:
+    done = []
+    for gradlew in (p for pattern in ("gradlew", "*/gradlew", "*/*/gradlew") for p in tree.glob(pattern)):
+        if "node_modules" in gradlew.parts or not (gradlew.parent / ".gradle").is_dir():
+            continue
+        where = str(gradlew.parent.relative_to(tree))
+        try:
+            run([str(gradlew), "--stop"], gradlew.parent, timeout=300)
+            done.append(where)
+        except (RuntimeError, OSError, subprocess.SubprocessError) as error:
+            done.append(f"{where} failed: {error}")
+    return "gradle --stop: " + (", ".join(done) or "no directory with gradlew and .gradle")
+
+
+def close_window(name: str) -> None:
+    def quote(text: str) -> str:
+        return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+    # Simulator.app rejects AppleScript `close` (-1708); its window's close button works through System Events.
+    script = (
+        'if application "Simulator" is running then\nwith timeout of 15 seconds\n'
+        'tell application "System Events" to tell process "Simulator"\n'
+        f"repeat with w in (every window whose name is {quote(name)} or name starts with {quote(name + ' ')})\n"
+        'click (first button of w whose subrole is "AXCloseButton")\nend repeat\nend tell\nend timeout\nend if'
+    )
+    run(["osascript", "-e", script], timeout=30)
+
+
+def devices(prefixes: list[str]) -> str:
+    if not prefixes:
+        return "devices: not checked (no --device-prefix)"
+    mine = re.compile("(?:" + "|".join(re.escape(p) for p in prefixes) + ")(?:-|$)", re.IGNORECASE)
+    done, problems = [], []
+    if shutil.which("xcrun"):
+        try:
+            listed = json.loads(run(["xcrun", "simctl", "list", "devices", "-j"]))["devices"]
+            for sim in (s for runtime in listed.values() for s in runtime if mine.match(s["name"])):
+                try:
+                    if sim.get("state") == "Booted":
+                        run(["xcrun", "simctl", "shutdown", sim["udid"]])
+                    run(["xcrun", "simctl", "delete", sim["udid"]])
+                    done.append(f"simulator {sim['name']}")
+                except RuntimeError as error:
+                    problems.append(f"simulator {sim['name']}: {error}")
+                    continue
+                if not any(p.startswith("Simulator.app window") for p in problems):
+                    try:
+                        close_window(sim["name"])
+                    except (RuntimeError, OSError, subprocess.SubprocessError) as error:  # one try: the rest would fail the same way
+                        problems.append(f"Simulator.app window {sim['name']} left open: {error}")
+        except (RuntimeError, ValueError, KeyError) as error:
+            problems.append(f"simulators unreadable: {error}")
+    if Path(ADB).exists():
+        try:
+            serials = [l.split()[0] for l in run([ADB, "devices"]).splitlines() if l.startswith("emulator-") and "\tdevice" in l]
+            for serial in serials:
+                try:
+                    name = run([ADB, "-s", serial, "emu", "avd", "name"]).strip().splitlines()[0]
+                except (RuntimeError, IndexError):
+                    continue  # name unknown: cannot tell whose it is
+                if mine.match(name):
+                    run([ADB, "-s", serial, "emu", "kill"])
+                    done.append(f"emulator {name}")
+        except RuntimeError as error:
+            problems.append(f"emulators: {error}")
+    for ini in sorted(AVD_HOME.glob("*.ini")):
+        if mine.match(ini.stem):
+            shutil.rmtree(AVD_HOME / f"{ini.stem}.avd", ignore_errors=True)
+            ini.unlink(missing_ok=True)
+            done.append(f"AVD {ini.stem}")
+    line = "devices: " + (", ".join(done) or f"none named {' or '.join(prefixes)}")
+    return line + (f"; problems: {'; '.join(problems)}" if problems else "")
+
+
+def herdr_workspace() -> str:
+    try:
+        pane = json.loads(run([HERDR, "pane", "current"]))["result"]["pane"]
+    except (RuntimeError, OSError, ValueError, KeyError) as error:
+        if not any(key.startswith("HERDR_") for key in os.environ):
+            return "herdr: not running in herdr"
+        return f"herdr: workspace kept, current pane unreadable: {error}"
+    workspace = pane["workspace_id"]
+    try:
+        panes = json.loads(run([HERDR, "pane", "list", "--workspace", workspace]))["result"]["panes"]
+    except (RuntimeError, OSError, ValueError, KeyError) as error:
+        return f"herdr: workspace {workspace} kept, panes unreadable: {error}"
+    others = [p["pane_id"] for p in panes if p["pane_id"] != pane["pane_id"]]
+    if others:
+        return f"herdr: workspace {workspace} kept: it has other panes ({', '.join(others)})"
+    subprocess.Popen(
+        [sys.executable, "-c", "import subprocess, sys, time; time.sleep(int(sys.argv[1])); subprocess.run(sys.argv[2:])",
+         str(CLOSE_DELAY), HERDR, "workspace", "close", workspace],
+        start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    return f"herdr: workspace {workspace} closes in {CLOSE_DELAY} s"
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="pr-cleanup", description="Stop what a PR's agents left running in its worktree.")
+    parser.add_argument("worktree", nargs="?", help="the PR's worktree directory")
+    parser.add_argument("--device-prefix", action="append", default=[], metavar="PREFIX",
+                        help="delete simulators, emulators and AVDs named PREFIX or PREFIX-... (repeatable)")
+    parser.add_argument("--close-herdr-workspace", action="store_true",
+                        help=f"only close this agent's herdr workspace {CLOSE_DELAY} s from now")
+    args = parser.parse_args()
+    if args.close_herdr_workspace:
+        if args.worktree or args.device_prefix:
+            parser.error("--close-herdr-workspace runs alone, as the last command")
+        print(herdr_workspace(), flush=True)
+        return
+    if not args.worktree:
+        parser.error("the worktree directory is required")
+    tree = Path(args.worktree).resolve()
+    if not tree.is_dir() or tree == Path.home() or len(tree.parts) < 3:
+        parser.error(f"not a worktree directory: {args.worktree}")
+    given = os.path.abspath(args.worktree)
+    for step in (lambda: processes(str(tree), given), lambda: gradle(tree), lambda: devices(args.device_prefix)):
+        try:
+            print(step(), flush=True)
+        except (RuntimeError, OSError, subprocess.SubprocessError) as error:
+            print(f"failed: {error}", flush=True)
+
+
+if __name__ == "__main__":
+    main()
