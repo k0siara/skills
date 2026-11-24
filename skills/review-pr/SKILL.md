@@ -33,7 +33,7 @@ Run the `review-change` skill yourself, not in a subagent: you did not write thi
 - the PR title and body as the PR description;
 - the PR discussion from step 1;
 - the CI checks from step 1 as test results;
-- the `review` agent as the reviewer agent. It sets no reviewer count; `review-change` decides that.
+- the `review` agent as the reviewer agent. It sets no reviewer count: `review-change` decides how many reviewers run its technical, architecture and simplification passes.
 
 CI on the head SHA is the test evidence: do not build, run tests, lint or scans locally. Report failed, still running and missing checks (no check covering a changed module) as they are; never re-run them locally.
 
@@ -43,9 +43,9 @@ It writes `pr.diff`, `business-context.md` and `review-change.md` in the artifac
 
 1. **Earlier remarks.** An issue already raised on the PR, in any thread state (resolved or outdated included), gets no new comment. If the problem is still in the code, it stays on the findings list with a link to the thread and its state.
 2. **CI.** Read once more, without waiting, the checks that were running in step 1. A failed check is a technical finding with the cause from the failed-step log only (`gh run view <run> --log-failed`) and a link; build or test failure is P0. No GitHub comment for checks, since the author sees them. List checks still running.
-3. **Comments.** Write each in its final published form, following the workspace PR comment rules, so the user approves exactly what goes to GitHub. One comment per finding without an existing thread. An architecture comment names the document, the reference files or the principle and its effect. A `missing_justification` comment asks for the rationale instead of claiming the solution is wrong. A `design_suggestion` comment is worded as optional: the cost of the current code, the alternative and what it gives up, and that it does not block merge. Task vs PR description mismatches go into one general comment asking the author to correct the task or the description, at the highest priority among them.
+3. **Comments.** Write each in its final published form, following the workspace PR comment rules, so the user approves exactly what goes to GitHub. One comment per finding without an existing thread. An architecture comment names the document, the reference files or the principle and its effect. A `missing_justification` comment asks for the rationale instead of claiming the solution is wrong. A `design_suggestion` comment, from any pass, is worded as optional: the cost of the current code, the alternative and what it gives up, and that it does not block merge. Task vs PR description mismatches go into one general comment asking the author to correct the task or the description, at the highest priority among them.
 
-Report the `review-change` result (traceability table, tests, coverage, rejected findings), then a **review summary**: two or three sentences on the PR's overall quality and one table of all findings sorted by priority, `# | priority | type (business/technical/architecture/design suggestion) | location | thread link | proposed GitHub comment`. Findings appear only in this table, not twice.
+Report the `review-change` result (traceability table, tests, coverage across the technical, architecture and simplification passes, rejected findings), then a **review summary**: two or three sentences on the PR's overall quality and one table of all findings sorted by priority, `# | priority | type (business/technical/architecture/simplification/design suggestion) | location | thread link | proposed GitHub comment`. Findings appear only in this table, not twice.
 
 Ask which comments to publish (all, selected numbers or none) and whether to change any text. After each change, show the full final text of the changed comments again. Go to step 4 only after the user explicitly approves publishing the last version shown.
 

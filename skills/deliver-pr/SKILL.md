@@ -113,7 +113,7 @@ Checks `verify-changes` deferred to CI are not gaps: the PR's verification secti
 
 1. Commit the changes locally following the repository's commit rules. Do not push.
 2. Run the `pr` skill to write the draft PR title and description to `pr-body.md` in the artifacts directory. The `pr` skill decides the format, language, repository template and content; never write the description in your own format. If the `pr` skill is not installed, stop and tell the user to install it with `npx skills@latest add k0siara/skills -g`.
-3. Run the `review-change` skill with the worktree, the base, `task.md`, `pr-body.md` and the `verify-changes` result: in a stage agent (see "Stage agents"). It reviews and does not edit.
+3. Run the `review-change` skill with the worktree, the base, `task.md`, `pr-body.md` and the `verify-changes` result: in a stage agent (see "Stage agents"). It runs the technical, architecture and simplification passes, reviews and does not edit.
 4. Handle every blocking finding by its handling class, and every follow-up as `author's call`:
    - `fix`: fix it;
    - `out of scope`: do not fix; list it in the final report;

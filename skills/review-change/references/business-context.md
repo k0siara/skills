@@ -8,6 +8,10 @@ An entry that prescribes a mechanism, a configuration, a code shape or a test-on
 # Business context: <repo> <branch or PR #N>
 ## Sources
 - sources read, with links and the number of comments/threads; sources unavailable
+## Goal and non-negotiables
+- concise user-visible goal and every binding behavior, compatibility, security, accessibility and scope constraint, with source/rule IDs; distinguish missing information from established facts
+- effects required by implementation hints, not the hints' proposed code shape; include binding constraints even when they make simplification harder
+- this is the simplification reviewer's starting context, not an implementation plan; it checks the full context after inspecting code and before reporting
 ## Problem and value
 - the problem, for whom, the value of the change [source]
 ## Behavior before and after

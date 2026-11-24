@@ -13,6 +13,7 @@ In scope: behavior the change introduces or alters, including tests, plus the ca
 
 Out of scope, covered by other agents:
 - layer placement, module boundaries, patterns, conventions, design principles and which layer owns error mapping (architecture reviewer);
+- necessity, deletion, simplicity, reuse of existing or installed code, naming clarity, and test code that adds no check, such as scaffolding or duplicated cases (simplification reviewer);
 - whether the change fulfils the task, whether every business rule has an implementation and a test asserting it, and scope fit (the caller).
 The business context is your reference for expected behavior. A business rule that the code implements incorrectly is still a `defect` you report; the lead merges duplicates.
 </scope>
