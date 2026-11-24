@@ -11,6 +11,14 @@ description: "Use when the user asks to babysit, watch or monitor a GitHub PR, o
 
 Before the first git or `gh` operation, read the instructions that apply to the repository: `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md` in the repo and its parent workspace, plus any file they point to for git/GitHub rules. Follow them for every git and `gh` operation. Where they set more specific rules (commit format, pre-commit and pre-push steps, worktree location, PR comment format, which actions need the user's approval), they win over the defaults below. Without such rules: run the repo's own hooks, never use `--no-verify`, never force-push outside **Conflict**.
 
+## Checkout safety
+
+Monitoring never requires a clean checkout. For code changes, reuse a clean checkout at the current PR head or create an isolated detached **Worktree**. Leave pre-existing work untouched; never stash, reset, or clean it.
+
+Push `HEAD:refs/heads/<headRefName>` to the PR head repository's writable remote, never an inferred upstream. Only **Conflict** may force-push: `--force-with-lease=refs/heads/<headRefName>:<expected-head>` using the remote head read before rebasing. Verify the remote PR head equals local HEAD.
+
+Only after merge, remove worktrees this agent created: clean, at the freshly read PR head, with no other watcher using them. Use `git worktree remove`, never `--force`; otherwise keep them.
+
 ## Ignored checks
 
 The user lists CI checks to ignore in the config file `~/.config/babysit-pr/config.json` (or `$XDG_CONFIG_HOME/babysit-pr/config.json`, or the path in `$BABYSIT_PR_CONFIG`), as regexes on the check name, per repository or for all (`*`):
@@ -35,7 +43,7 @@ Ask first (**Notify and ask**), with the proposed action:
 - Ambiguity: more than one reasonable fix, a cause you cannot confirm, a log you cannot read, a reviewer you partly or fully disagree with.
 - A change to what the PR is meant to do, to a public interface or to user-visible behaviour, beyond what a reviewer explicitly asked for.
 - Scope growth: files or areas the PR does not touch, new dependencies, fixing a broken base inside this PR, deleting or weakening tests or checks.
-- Risk of losing data: anything beyond `--force-with-lease` on the PR branch, dropping or squashing commits, discarding local changes, a tree that is not clean on the PR head.
+- Risk of losing data: anything beyond `--force-with-lease` on the PR branch, dropping or squashing commits, or overwriting pre-existing work. A dirty checkout alone needs no approval; use **Checkout safety**.
 - A second attempt: the same check fails again after your fix or rerun, or a verification you ran fails.
 - Anything published in the user's name: replies, top-level comments, resolving threads, review requests. Post only text the user approved.
 
@@ -69,7 +77,7 @@ BABYSIT: <MERGED|CLOSED|BLOCKED> <pr-url> <short reason>
 ## Start
 
 1. Read **Ignored checks**. Run **Assess** only to see where it ends; act on nothing yet. Merged → notify `info`, then **Merged**. Closed → notify `warning` and stop with `BABYSIT: CLOSED`. Anything else: go on.
-2. Find the local checkout of `headRefName` (`git worktree list`); if there is none, create one (**Worktree**). It must be on the PR head with a clean tree. Otherwise stop and report.
+2. Locate existing checkouts (`git worktree list`). Apply **Checkout safety** when code changes are needed; a dirty or outdated checkout does not block watching.
 3. Handle what already exists, because the watcher's first run records existing activity without reporting it: unanswered comments and unresolved threads → **Comments** (it ends with **Assess**); none → **Assess**. Act on its result: conflicts before CI, both before approval.
 4. Start the watcher (below) unless that already happened or watching ended, and end your turn. Do not post "still waiting".
 
@@ -96,12 +104,13 @@ After **Conflict**, **CI failure** or **Comments** changed something, run **Asse
 
 ## Worktree
 
-Only when no checkout of the PR branch exists. `<path>` is the worktree location the project rules name, else `<main-checkout>/.work/babysit/pr-<pr>/worktree`, inside `<main-checkout>/.work/` (`<main-checkout>` is the repository's main working tree; add `.work/` to `$(git rev-parse --git-common-dir)/info/exclude` if it is not there).
+Use the project-defined location, else `<main-checkout>/.work/babysit/pr-<pr>/worktree`; ignore `.work/` locally. If occupied by an unsuitable checkout, use a new sibling path; never replace it.
+
+Fetch from the PR head repository's remote (the fork for fork PRs), then create the detached checkout at the freshly read `headRefOid`:
 
 ```bash
-git fetch origin
-git worktree add --detach <path> origin/<baseRefName>
-cd <path> && gh pr checkout <pr>
+git fetch <head-remote> refs/heads/<headRefName>
+git worktree add --detach <path> <headRefOid>
 ```
 
 ## Watcher
@@ -148,7 +157,7 @@ If the session was resumed or a wake came more than 6 h after the last one, redo
    - Never cut validation at trust boundaries, error handling that prevents data loss, or security.
    - If a comment asks for more than its problem needs, propose the minimal fix, decline the rest with a written reason and list it as a follow-up.
 5. Prepare one block per comment: link, author, one-line quote; verdict (agree / partly / disagree, why); code change as a concrete diff, or none; reply text in the format the project rules require for PR comments. Mark each code change as act or ask by **Act or ask**.
-6. Apply the code changes marked act, compile and run the tests of the touched modules (leave full suites to CI), run the project's pre-commit/pre-push steps, commit, `git push` (never force). A failing verification turns that change into ask.
+6. Apply the code changes marked act, compile and run the tests of the touched modules (leave full suites to CI), run the project's pre-commit/pre-push steps, commit, and push under **Checkout safety**. A failing verification turns that change into ask.
 7. Ask for approval (**Notify and ask**) of everything else: question `PR #<n> · <k> new comments`, one item per comment, block = its step 5 block (or what you already pushed). Every reply needs approval, also for changes you already pushed.
 8. Apply exactly the approved fixes. If the real change departs from the approved diff, stop and ask again. Same steps as step 6, then post exactly the approved replies: thread replies via the `addPullRequestReviewThreadReply` mutation, top-level ones via `gh pr comment`. Do not resolve threads unless the user approved it.
 9. Report what was pushed and posted, then **Assess**.
@@ -164,7 +173,7 @@ Find why each failed check failed and fix what **Act or ask** lets you fix.
    - **Base broken**: the same check fails on the base branch too (`gh run list --branch <baseRefName> --workflow <workflow> --limit 3`), or the error is in code the PR does not touch and a rebase onto the base would bring a fix.
    - **Flaky or infra**: network, runner, cache, timeout, a test that passed on an earlier run of the same code.
 4. Act per check, or ask when **Act or ask** says so:
-   - PR change → the smallest complete fix, with the rules of **Comments** step 4. Reproduce locally with the command the project rules give for that check when that is cheap. Then compile and the tests of the touched modules, project pre-commit/pre-push steps, commit, `git push` (never force).
+   - PR change → the smallest complete fix, with the rules of **Comments** step 4. Reproduce locally with the command the project rules give for that check when that is cheap. Then compile and the tests of the touched modules, project pre-commit/pre-push steps, commit, and push under **Checkout safety**.
    - Base broken → no fix in this PR. If the base's latest run of that check passed, rebase (**Conflict** steps 1–7); otherwise report where it breaks and keep watching.
    - Flaky or infra → `gh run rerun <run-id> --failed`. A missing secret or permission is not flaky: ask.
 5. For what you must ask about (**Notify and ask**): question `PR #<n> · <k> failed checks`, one item per check, `label` = check name + one-line cause, block = link, the quoted error lines, cause class with the reason, proposed action (diff, rerun command or rebase). Apply exactly the approved actions.
@@ -174,12 +183,12 @@ Find why each failed check failed and fix what **Act or ask** lets you fix.
 
 Rebase the PR branch onto its base in the PR's worktree. Do not message reviewers or anyone else about it.
 
-1. `gh pr view <pr> --json baseRefName,headRefOid`. The tree must be clean and `git rev-parse HEAD` must equal `headRefOid`. Otherwise stop and report.
+1. `gh pr view <pr> --json baseRefName,headRefOid`. Prepare a checkout under **Checkout safety** at this head; record it as `<expected-head>` for the push lease.
 2. `git fetch origin <baseRefName>`, then `git rebase origin/<baseRefName>`. If the base lives in another remote (e.g. `upstream` for a fork), use that remote.
 3. At each stop: list the conflicts (`git diff --name-only --diff-filter=U`), read each file with both sides, resolve it so the PR keeps its intent and the base keeps its changes, `git add <file>`, `git rebase --continue`. Repeat until the rebase completes.
 4. If a resolution would change what the PR does, or the right result is unclear, stop and ask the user, showing the conflict and the proposed resolution. If they decide against the rebase, `git rebase --abort`.
 5. No conflict resolved by hand: run only the project's pre-push steps and leave verification to CI. Otherwise also compile and run the tests touched by the resolved files; leave full suites to CI. Do not push past a failure.
-6. `git push --force-with-lease`, never plain `--force`. Then check that `git rev-parse HEAD` equals `git rev-parse @{u}`.
+6. Push under **Checkout safety** with the explicit `--force-with-lease`.
 7. Report the new head commit, the number of commits rebased, the files with resolved conflicts and the verification that ran. If a step failed, report the blocker and any partial side effects instead, and end with `BABYSIT: BLOCKED`.
 8. **Assess**. The push made a new head, so it restarts the watcher; the new CI and any dismissed approval come back through it.
 
@@ -193,15 +202,7 @@ Only when **Assess** says so: the PR is approved, no check failed or is pending,
 
 ## Merged
 
-Remove your worktree when that is safe. Whatever happens here, the status is `BABYSIT: MERGED`; its reason says whether the worktree was removed or kept, and why.
-
-1. Remove nothing unless all hold, otherwise say why: `git branch --show-current` in the agent's working directory equals the PR's `headRefName` (the agent works in the PR's checkout, not on the user's main checkout); this agent runs no other PR watcher.
-2. If the working directory is a linked worktree (`git rev-parse --path-format=absolute --git-dir` differs from `--git-common-dir`), remove it:
-   - `git status --porcelain` is empty and `git rev-parse HEAD` equals the PR's `headRefOid` (`gh pr view <pr> --json headRefOid`), so nothing local is lost. Otherwise report what is left and keep the worktree.
-   - `git -C "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" worktree remove "$(git rev-parse --show-toplevel)"`, never `--force`. On error, report it.
-3. Final reply: PR merged, worktree removed (or why not), then `BABYSIT: MERGED <pr-url> worktree removed|kept: <why>`.
-
-Do not delete the branch and do not change the issue tracker.
+Apply **Checkout safety** cleanup. Whatever happens, end with `BABYSIT: MERGED <pr-url> worktree removed|kept: <why>`. Do not delete the branch or change the issue tracker.
 
 ## Never
 
