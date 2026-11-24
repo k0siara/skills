@@ -39,7 +39,7 @@ flowchart TD
         direction LR
         deliver["<b>deliver-pr</b><br/>one ticket to<br/>a verified PR"]
         verify["<b>verify-changes</b><br/>checks, build,<br/>tests, real app"]
-        rc["<b>review-change</b><br/>independent review<br/>against the task"]
+        rc["<b>review-change</b><br/>independent review against<br/>the task: technical, architecture,<br/>simplification"]
         pr["<b>pr</b><br/>PR title and<br/>description"]
         deliver --> verify --> rc --> pr
     end
@@ -66,6 +66,8 @@ flowchart TD
 
 Go top to bottom. Skip a stage when you already have its output: a small, clear task goes straight to `deliver-pr`. Inside **Build**, `deliver-pr` runs `verify-changes`, `review-change` and `pr` for you; run them by hand when you build without it.
 
+`review-change` checks a finished change in three independent passes, each run by a reviewer who did not write it. **Technical** looks for behavior: defects, edge cases, failure paths, whether the tests would catch a wrong implementation, security, performance and logging. **Architecture** checks the project's documented boundaries, contracts and conventions, and the design principles they rest on. **Skeptical simplification** asks whether the change can be smaller: what can be deleted, what existing or installed code already does, which abstractions are not needed, unclear names and test scaffolding. Its suggestions are optional and never block a merge. A small, safe change gets two reviewers (one for technical and architecture together, one for simplification); a risky change gets three, one per pass. All reviewers run on the `review` agent that setup creates, so the simplification pass needs no extra setup or model.
+
 ## Which skill, when and why
 
 | Stage | Skill | Use it when | Why |
@@ -78,7 +80,7 @@ Go top to bottom. Skip a stage when you already have its output: a small, clear 
 | | [to-tickets](./skills/to-tickets/SKILL.md) | A spec is approved | Cuts it into self-contained one-PR tickets (parent + child = the full brief, checked by a blind read), with blocking edges, published to your tracker |
 | 3 · Build | [deliver-pr](./skills/deliver-pr/SKILL.md) | A ticket or a small, clear task is ready | Takes it end to end in an isolated worktree: plan, code, verification, independent review, PR |
 | | [verify-changes](./skills/verify-changes/SKILL.md) | Before a commit, PR or merge | Proves the change with the repo's own checks and the real app, with evidence |
-| | [review-change](./skills/review-change/SKILL.md) | A branch is done and needs a second pair of eyes | Reviews it against its task with reviewers who did not write it |
+| | [review-change](./skills/review-change/SKILL.md) | A branch is done and needs a second pair of eyes | Reviews it against its task in three passes (technical, architecture, skeptical simplification), by reviewers who did not write it |
 | | [pr](./skills/pr/SKILL.md) | Opening or updating a PR | Writes a description grounded in the diff and the verification that ran |
 | 4 · Ship | [babysit-pr](./skills/babysit-pr/SKILL.md) | Your PR is open | Watches it until it merges, rebases on conflict also after approval, fixes routine CI failures itself, proposes fixes and replies to comments |
 | Review others | [review-pr](./skills/review-pr/SKILL.md) | A teammate asks for a review | Reviews in a detached worktree and publishes only the comments you approve |

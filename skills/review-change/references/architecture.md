@@ -5,14 +5,13 @@ In scope: code introduced by the change, including tests.
 - Project instructions: rules from the instruction files, docs, checklists and architecture decisions reached through <project-knowledge>.
 - Structure: layer and module placement, dependency direction, responsibility split, data crossing layer boundaries, naming and file placement dictated by project conventions.
 - Design principles: SRP, OCP, LSP, ISP, DIP; the layer dependency rule (inner layers never depend on outer ones); single source of truth; unidirectional data flow; encapsulation (no leaking internal or lower-layer types); testability (dependencies injected, side effects behind abstractions); explicit contracts (see <method-semantics>).
-- KISS: layers, abstractions, interfaces with a single implementation and no seam need, generic mechanisms, configuration or indirection the change does not need, compared with how peers solve the same problem and with the smallest complete solution (see <minimal-solution>).
 - Error architecture: the error model of each layer, mapping errors at layer boundaries, which layer catches, handles and presents errors.
 - Public contracts: APIs, DTOs, shared modules and published libraries; backward compatibility with existing consumers and versioning.
-- Readability: function and class size against peers, nesting depth, flag parameters, magic values.
-- Reuse: an existing helper, base class, extension or abstraction already covers the new code; duplication and dead code introduced by the patch.
+- Readability conventions: function and class size, nesting depth and magic values, where the docs or peers set a convention.
+- Documented reuse: a shared helper, base class or mechanism that the docs or at least 2 peers require for this kind of code, which the patch bypasses (name its path).
 - Pattern change: the patch introduces a new pattern or changes an existing one; see <pattern-change>.
 
-Out of scope, covered by other agents: logic bugs (including a wrong result inside correctly placed error handling), runtime behavior of error paths, test adequacy, performance, security, logging and monitoring behavior, and whether the change fulfils the task. Do not report them here.
+Out of scope, covered by other agents: logic bugs (including a wrong result inside correctly placed error handling), runtime behavior of error paths, test adequacy, performance, security, logging and monitoring behavior, and whether the change fulfils the task (technical reviewer and caller); necessity, deletion, simplicity, generic reuse of installed, standard library or project code, gratuitous abstractions and conversions, naming clarity, and test scaffolding or duplication (simplification reviewer). Do not report them here.
 </scope>
 
 <input>
@@ -33,7 +32,7 @@ Apply the project-knowledge rule the caller supplies. Within it, read first the 
 A pattern change is a new way of solving a recurring problem in this codebase, or a change to the established way: e.g. a new kind of mapper, a new state-holder or error type style, a new dependency-injection or navigation approach, a new base class or layer.
 1. Name the established pattern with ≥2 peer paths, or state that none exists.
 2. Look for the rationale in `business-context.md` (task, PR body, discussion decisions) and in the docs. Never write the rationale yourself.
-3. With a rationale, assess: what problem justifies the change; why the existing solution is not enough; whether the new approach stays consistent with the project rules and principles; its effect on consistency, maintenance and compatibility. A rationale proves only what <input> says a source proves, so check whether the existing or precedent solution would meet the same outcome with less code. A rationale does not make the change acceptable by itself: report a `deviation` when its cost is not justified by the stated problem.
+3. With a rationale, assess: what problem justifies the change; why the existing solution is not enough; whether the new approach stays consistent with the project rules and principles; its effect on consistency, maintenance and compatibility. A rationale proves only what <input> says a source proves. A rationale does not make the change acceptable by itself: report a `deviation` when its boundary, contract or convention cost is not justified by the stated problem. Whether the same outcome needs less code is the simplification reviewer's question.
 4. Without a rationale, report `missing_justification`: a gap the author must fill, distinct from a confirmed defect. Name the pattern replaced and the question to answer. When the change also breaks a documented rule, report one `deviation` with `documented` reference instead, and state in its body that no rationale was found.
 5. Do not demand a separate ADR unless the project docs require one for this kind of change.
 </pattern-change>
@@ -41,16 +40,8 @@ A pattern change is a new way of solving a recurring problem in this codebase, o
 <method-semantics>
 For each significant method the patch adds or changes, internal ones included (it decides, validates, converts, persists, or other code relies on its result), compare its name and doc comment with what the body actually guarantees: for which inputs the result holds, what it assumes was checked before (preconditions), and what it changes besides its result (side effects: state, I/O, mutation of arguments). Trivial accessors and delegations need no check.
 - The name or doc comment promises more than the body guarantees, or hides a precondition or side effect a caller must know: `deviation` with `principle` (explicit contracts); `reference` names the guarantee a caller would assume and the callers that currently compensate for it, if any. It is P3 while every caller compensates, P2 when a caller relies on the missing guarantee.
-- The name is vague but not false: at most a `design_suggestion`.
+- A name that is vague but not false belongs to the simplification reviewer's naming-clarity pass; do not duplicate that suggestion here.
 </method-semantics>
-
-<minimal-solution>
-For each significant new abstraction the patch adds (type, interface, layer, intermediate model, generic mechanism, configuration), sketch the smallest complete solution that meets the same requirements: what could be removed, which requirements (business-context IDs, binding decisions and constraints) stay met, and which existing code already enforces part of them (e.g. a parser, schema or validator). Then:
-- Removal meets every requirement and loses nothing: `deviation` with `principle` (KISS); `reference` names what duplicates what.
-- Removal meets the requirements and removes clearly more than it gives up (an extension point, a clearer error, testability): `design_suggestion` with that trade-off.
-- The abstraction is needed, or a binding decision or constraint requires it: no finding; record it in `design_principles` coverage.
-Finding no simplification is a valid result; do not force one.
-</minimal-solution>
 
 <procedure>
 1. Read `business-context.md`, `pr.diff`, then the full content of every changed source file in the worktree. Skip generated, lock, IDE/project, resource and translation files unless the docs give rules for them.
@@ -64,14 +55,13 @@ Finding no simplification is a valid result; do not force one.
    - boundaries: types passed between layers (DTO vs domain vs UI model), mapping location;
    - errors: which error types each layer exposes, where they are mapped, caught and shown;
    - testability: how dependencies are obtained, whether side effects sit behind abstractions;
-   - simplicity: layers, abstractions and configuration beyond what the change and its peers need;
-   - readability: size, nesting, flag parameters and magic values against peers;
-   - reuse: an existing helper, base class, extension or abstraction already covers the new code (name its path);
+   - readability: size, nesting and magic values, where the docs or peers set a convention;
+   - documented reuse: a shared helper, base class or mechanism that the docs or at least 2 peers require for this kind of code, which the patch bypasses (name its path);
    - naming and file placement that the project convention dictates.
 5. Boundaries: every type, call, value or error introduced by the patch that crosses a layer or module boundary. Locate the consuming side, which is often outside the diff, and confirm the crossing goes through the layer the docs or peers use, without skipping a layer, inverting a dependency or leaking a lower-layer type.
 6. Contracts: for every changed public API, DTO, shared module or published interface, locate its consumers. When consumers live outside the repository (other services, released app versions), treat a removed or renamed field, a changed type or changed semantics as breaking, unless the docs define a compatibility or versioning mechanism and the patch uses it.
 7. Pattern changes per <pattern-change>.
-8. Method semantics per <method-semantics> and the smallest complete solution per <minimal-solution>.
+8. Method semantics per <method-semantics>.
 9. Write the report per <output>.
 </procedure>
 
@@ -79,10 +69,10 @@ Finding no simplification is a valid result; do not force one.
 Report a `deviation` only with a source:
 - `documented`: a rule in a document reached through <project-knowledge>; `reference` gives its path and section.
 - `convention`: a pattern confirmed in at least 2 existing files of the same role; `reference` gives their paths.
-- `principle`: a principle named in <scope>; `reference` names it and the concrete consequence in this code: what becomes hard to test, which future change forces edits elsewhere, which type leaks across which boundary, which consumer breaks, which layer or abstraction adds cost without a need. For a difference from a single precedent, `reference` also gives the precedent's path and what the patch adds beyond it (extra code, configuration or indirection the precedent does without).
+- `principle`: a principle named in <scope>; `reference` names it and the concrete consequence in this code: what becomes hard to test, which future change forces edits elsewhere, which type leaks across which boundary, which consumer breaks, which boundary is crossed without the layer that owns it. For a difference from a single precedent, `reference` also gives the precedent's path and the boundary, error or contract difference the patch adds.
 A `missing_justification` finding uses `convention` (paths of the replaced pattern's peers) or `documented` (the rule the change departs from) as `reference`.
 
-Report a `design_suggestion` for a well-founded change that is not a defect, convention breach or missing justification, only with all of: a patch-anchored location; the concrete cost of the current code (code, indirection, duplication or ambiguity, named in the code); an alternative the author can apply; and what the alternative gives up or does not solve. The alternative must remove clearly more cost than it gives up; when cost and gain are comparable, or it only moves code elsewhere, report nothing. Its `reference_kind` is `principle`. It is always P3, does not make the change `incorrect` and does not block merge.
+Report a `design_suggestion` for a well-founded change that is not a defect, convention breach or missing justification, only with all of: a patch-anchored location; the concrete cost of the current code (code, indirection, duplication or ambiguity, named in the code); an alternative the author can apply; and what the alternative gives up or does not solve. The alternative must remove clearly more cost than it gives up; when cost and gain are comparable, or it only moves code elsewhere, report nothing. Its `reference_kind` is `principle`. It is always P3, does not make the change `incorrect` and does not block merge. Keep it inside this pass's remit: boundaries, contracts, error architecture, conventions and principles, not necessity or generic simplicity.
 
 Precedence:
 - A documented rule beats a convention. Files that contradict the docs or are marked deprecated or legacy are not a convention, however many there are.
@@ -90,7 +80,7 @@ Precedence:
 - Report a `principle` finding only when neither the docs nor at least 2 peers sanction the deviation. Its priority is at most P2, except an inverted layer dependency or a broken public contract (P1). A `missing_justification` finding is at most P2.
 
 Do not report:
-- a `convention` finding based on a single file; a difference from a single precedent is reported only as a KISS `principle` finding with its concrete cost;
+- a `convention` finding based on a single file; a difference from a single precedent that only adds code, indirection or configuration (the simplification reviewer covers it);
 - competing conventions that coexist in the repository when the docs do not pick one;
 - code not introduced by the patch;
 - a principle finding without a concrete consequence in this code;
@@ -100,7 +90,7 @@ Do not report:
 </criteria>
 
 <coverage>
-Areas: `project_instructions`, `responsibility_boundaries`, `patterns_conventions`, `design_principles` (SOLID, Clean Architecture, KISS and the smallest complete solution, testability), `method_semantics`, `error_architecture`, `public_contracts`, `pattern_change_justification`.
+Areas: `project_instructions`, `responsibility_boundaries`, `patterns_conventions`, `design_principles` (SOLID, Clean Architecture, testability), `method_semantics`, `error_architecture`, `public_contracts`, `pattern_change_justification`.
 Statuses:
 - `checked`: evidence of the docs and peer files compared, with paths.
 - `issue_found`: the titles of the findings.
@@ -114,7 +104,7 @@ An area with findings or checks that still has an unverified part keeps `issue_f
 |---|---|---|
 |P0|Broken module boundary that fails the build or creates a dependency cycle|Domain module imports the data module that depends on it|
 |P1|Documented MUST rule broken, dependency direction inverted, or public contract broken for existing consumers|Presenter calls the repository directly while docs require a use case; response DTO field renamed while released clients still read it|
-|P2|Established convention, recommended documented rule or principle not followed; new or changed pattern without justification|Mapper as a free function while peers are injected mapper classes; use case constructs its repository instead of receiving it; data layer exception reaches the UI unmapped; interface and factory added for a single call site|
+|P2|Established convention, recommended documented rule or principle not followed; new or changed pattern without justification|Mapper as a free function while peers are injected mapper classes; use case constructs its repository instead of receiving it; data layer exception reaches the UI unmapped; feature imports another feature's data layer while peers go through its public API|
 |P3|Naming, placement or readability only, behavior and structure unchanged; a misleading contract every caller compensates for; every `design_suggestion`|File named `*Helper` where peers use `*Mapper`; magic number where peers use a named constant|
 </priority>
 
